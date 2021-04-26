@@ -1,0 +1,233 @@
+---
+title: "Replication Report"
+author: "Monica Chang"
+date: "4/24/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+library(readxl)
+library(janitor)
+library(rstanarm)
+library(foreign)
+library(stargazer)
+library(arm)
+library(haven)
+library(lavaan)
+```
+
+## Overview of the original paper
+
+## What I did for the replication
+
+```{r clean data}
+# I load the data from SPSS files from here:
+# https://www.russellsage.org/datasets/economic-inequality-and-political-representation 
+
+path = file.path("raw_data/DS1_v2_0.sav")
+gilens = read_sav(path)
+
+# I clean the dataset to exclude questions about policy changes that would
+# require a constitutional amendment or Supreme Court ruling, proposed changes 
+# that were partially but not fully adopted, and questions that lacked income 
+# breakdowns. 1,779 questions from 1981–2002 remain for the analyses.
+
+clean_gilens <- gilens %>%
+  clean_names() %>%
+  
+  # I exclude the 27 questions where there is no income breakdown.
+  
+  filter(!is.na(pred50_sw)) %>%
+  
+  # I exclude the 57 questions where the policy was partially adopted.
+  
+  filter(outcome != 2.5 & outcome != 3.5 & outcome != 4.5) %>%
+  
+  # None of the remaining questions require a Constitutional amendment or a 
+  # new Supreme Court ruling to bring about the proposed policy change - so
+  # I do not need to apply an additional filter.
+
+```
+
+```{r table 1}
+```
+
+```{r table 2}
+
+table_2 <- clean_gilens %>%
+  
+  mutate(mass_intgrp_stfav = 0) %>%
+  mutate(mass_intgrp_swfav = 0) %>%
+  mutate(mass_intgrp_stopp = 0) %>%
+  mutate(mass_intgrp_swopp = 0) %>%
+ 
+  mutate(mass_intgrp_stfav = ifelse(aarp == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(aflcio == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(american_federationof_state_countyand_municipal_employees == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(american_israel_public_affairs_committee == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(american_legion == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(christian_coalition == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(international_brotherhoodof_teamsters == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(national_rifle_association == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(national_rightto_life_committee == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(united_auto_workersunion == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  mutate(mass_intgrp_stfav = ifelse(veteransof_foreign_warsofthe_u_s == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
+  
+  mutate(mass_intgrp_swfav = ifelse(aarp == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(aflcio == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(american_federationof_state_countyand_municipal_employees == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(american_israel_public_affairs_committee == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(american_legion == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(christian_coalition == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(international_brotherhoodof_teamsters == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(national_rifle_association == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(national_rightto_life_committee == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(united_auto_workersunion == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  mutate(mass_intgrp_swfav = ifelse(veteransof_foreign_warsofthe_u_s == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
+  
+  mutate(mass_intgrp_stopp = ifelse(aarp == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(aflcio == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(american_federationof_state_countyand_municipal_employees == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(american_israel_public_affairs_committee == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(american_legion == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(christian_coalition == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(international_brotherhoodof_teamsters == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(national_rifle_association == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(national_rightto_life_committee == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(united_auto_workersunion == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  mutate(mass_intgrp_stopp = ifelse(veteransof_foreign_warsofthe_u_s == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
+  
+  mutate(mass_intgrp_swopp = ifelse(aarp == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(aflcio == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(american_federationof_state_countyand_municipal_employees == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(american_israel_public_affairs_committee == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(american_legion == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(christian_coalition == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(international_brotherhoodof_teamsters == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(national_rifle_association == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(national_rightto_life_committee == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(united_auto_workersunion == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  mutate(mass_intgrp_swopp = ifelse(veteransof_foreign_warsofthe_u_s == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
+  
+  dplyr::select(id8102, aarp:veteransof_foreign_warsofthe_u_s, mass_intgrp_stfav, mass_intgrp_stopp, mass_intgrp_swfav, mass_intgrp_swopp)
+  
+ 
+
+
+```
+
+```{r table 3}
+table_3 <- clean_gilens %>%
+  
+  # To use a logistic regression, I turn the outcome variable into a 
+  # dichotomous variable.
+  
+  mutate(policy_change = if_else(outcome > 0, 1, 0)) %>%
+  
+  # I calculate the net interest group alignment score by using the formula described in the paper.
+  
+  mutate(interest_align = (log(intgrp_stfav + (0.5 * intgrp_swfav) + 1)) - 
+                      (log(intgrp_stopp + (0.5 * intgrp_swopp) + 1))) %>%
+  mutate(logit_pred10 = log((pred10_sw)/(1-pred10_sw)),
+         logit_pred50 = log((pred50_sw)/(1-pred50_sw)),
+         logit_pred90 = log((pred90_sw)/(1-pred90_sw))) %>%
+  dplyr::select(policy_change, logit_pred10, logit_pred50, logit_pred90, interest_align) %>%
+  
+  # I normalize all my predictors to be on a scale from 0 to 1.
+  
+  mutate(interest_align_norm = (interest_align - min(interest_align))/(max(interest_align) - min(interest_align)),
+         pred10_norm = (logit_pred10 - min(logit_pred10))/(max(logit_pred10) - min(logit_pred10)),
+         pred50_norm = (logit_pred50 - min(logit_pred50))/(max(logit_pred50) - min(logit_pred50)),
+         pred90_norm = (logit_pred90 - min(logit_pred90))/(max(logit_pred90) - min(logit_pred90))) %>%
+         
+  dplyr::select(policy_change, pred10_norm, pred50_norm, pred90_norm, 
+                interest_align_norm)
+
+myModel <- '
+  # 1. latent variable definitions
+    f1 =~ y1 + y2 + y3
+    f2 =~ y4 + y5 + y6
+    f3 =~ y7 + y8 + 
+          y9 + y10 
+    f4 =~ y11 + y12 + y13
+
+  ! this is also a comment
+ 
+  # 2. regressions
+    f1 ~ f3 + f4
+    f2 ~ f4
+    y1 + y2 ~ x1 + x2 + x3
+
+  # 3. (co)variances
+    y1 ~~ y1
+    y2 ~~ y4 + y5 
+    f1 ~~ f2
+
+  # 4. intercepts
+    f1 ~ 1; y5 ~ 1
+
+  # 5. thresholds
+    y11 | t1 + t2 + t3
+    y12 | t1
+    y13 | t1 + t2
+
+  # 6. scaling factors
+    y11 ~*~ y11
+    y12 ~*~ y12
+    y13 ~*~ y13
+
+  # 7. formative factors
+    f5 <~ z1 + z2 + z3 + z4
+'
+
+model <- "
+# latent variable definitions
+  L5 =~ 1 * rangepred50
+  L9 =~ 1 * rangepred90
+  IG_bal =~ 1 * rangeinterest
+  
+  # regressions
+  policy_change ~  pred50_norm +pred90_norm + interest_group_norm
+ 
+  # (co)variances
+  rangepred50 ~~ .0026380 * rangepred90
+  L5 ~~ IG_bal
+  L9 ~~ IG_bal
+  L5 ~~ L9
+"
+
+model1 <- sem(model,
+           data = gilens,
+           estimator = "WLS")
+summary(model1, rsquare = TRUE)
+
+model_1 <- glm(formula = policy_change ~ pred50_norm, 
+               family = binomial(link = "logit"), 
+               table_3)
+summary(model_1)
+model_2 <- glm(formula = policy_change ~ pred90_norm, 
+               family = binomial(link = "logit"), 
+               table_3)
+summary(model_2)
+model_3 <- glm(formula = policy_change ~ interest_align_norm, 
+               family = binomial(link = "logit"), 
+               table_3)
+summary(model_3)
+model_4 <- glm(formula = policy_change ~ pred50_norm + pred90_norm + interest_align_norm, 
+               family = binomial(link = "logit"), 
+               table_3)
+summary(model_4)
+```
+
+## Extension of the paper
+
+## Bibliography
+
+Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics
+Tables. R package version 5.2.2. https://CRAN.R-project.org/package=stargazer
+
+
+
