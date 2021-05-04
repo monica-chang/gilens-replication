@@ -6,21 +6,17 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(janitor)
 library(rstanarm)
-library(foreign)
 library(stargazer)
-library(arm)
 library(haven)
-library(lavaan)
 library(modEvA)
 library(dplyr)
-library(xtable)
 library(statxp)
 library(gt)
-library(gridExtra)
+library(cowplot)
 ```
 
 ## Overview of the original paper
@@ -134,40 +130,18 @@ Pluralism.
 
 ## Overview of my replication
 
+Note: Because structural equation modeling is outside the scope of this course, 
+I use ordinary least squares regression instead. This difference in model choice 
+means that my tables and figures are all slightly different from those shown in 
+the paper. Besides this modeling difference, I fully replicate the four tables 
+and one figure that appear in the paper.
+
+### Data cleaning
+
 For my replication, I first cleaned Gilens' publicly provided data according 
 to the criteria laid out in the paper (excluding questions without an
 income breakdown, where the policy was partially adopted, or if the policy 
 change required a Constitutional amendment or Supreme Court ruling).
-
-```{r clean data, include = FALSE}
-# I load the data from SPSS files from here:
-# https://www.russellsage.org/datasets/economic-inequality-and-political-representation 
-
-path = file.path("raw_data/DS1_v2_0.sav")
-gilens = read_sav(path)
-
-write_csv(gilens,"raw_data/DS1_v2_0.csv" )
-
-# I clean the dataset to exclude questions about policy changes that would
-# require a constitutional amendment or Supreme Court ruling, proposed changes 
-# that were partially but not fully adopted, and questions that lacked income 
-# breakdowns. 1,779 questions from 1981–2002 remain for the analyses.
-
-clean_gilens <- gilens %>%
-  clean_names() %>%
-  
-  # I exclude the 27 questions where there is no income breakdown.
-  
-  filter(!is.na(pred50_sw)) %>%
-  
-  # I exclude the 57 questions where the policy was partially adopted.
-  
-  filter(outcome != 2.5 & outcome != 3.5 & outcome != 4.5) 
-  
-  # None of the remaining questions require a Constitutional amendment or a 
-  # new Supreme Court ruling to bring about the proposed policy change - so
-  # I do not need to apply an additional filter.
-```
 
 After filtering the dataset to only include the 1,779 survey questions that
 met the criteria, I cleaned the dataset to prepare it for modeling:
@@ -186,136 +160,21 @@ I took the logits of the imputed percent of respondents at the
 
 I standardized all predictors to be on a scale of 0 to 1. 
 
-```{r calculate and normalize predictors, include = FALSE}
-clean_gilens <- clean_gilens %>%
-  
-  # I turn the outcome variable into a dichotomous variable.
-  
-  mutate(policy_change = if_else(outcome > 0, 1, 0)) %>%
-  
-  # I calculate the net interest group alignment score by using the formula 
-  # described in the paper.
-  
-  mutate(intgrp_align = (log(intgrp_stfav + (0.5 * intgrp_swfav) + 1)) - 
-                      (log(intgrp_stopp + (0.5 * intgrp_swopp) + 1))) %>%
-  
-  # I normalize the net interest group alignment score to be on a scale from 0 
-  # to 1.
-  
-  mutate(intgrp_align_norm = range01(intgrp_align)) %>%
-  
-  # I use qlogis() to take the logit of the imputed percent of respondents at 
-  # the 10th, 50th, and 90th income percentiles that favor the proposed policy 
-  # change. I then use range01() to normalize my predictors to be on a scale 
-  # from 0 to 1.
-  
-  mutate(pred10_norm = range01(qlogis(pred10_sw)),
-         pred50_norm = range01(qlogis(pred50_sw)),
-         pred90_norm = range01(qlogis(pred90_sw))) 
-```
+### Table 1 Replication
 
-```{r add interest group alignment scores for mass-based & business interest groups}
-  
-add_scores <- function(df){
-  
-  df <- df %>%
-    # I initialize 8 columns to track the number of mass-based and business
-    # interest groups that are strongly in favor, somewhat in favor, somewhat
-    # opposed, or strongly opposed to the policy change in each question.
-    
-    mutate(mass_intgrp_stfav = 0) %>%
-    mutate(mass_intgrp_swfav = 0) %>%
-    mutate(mass_intgrp_stopp = 0) %>%
-    mutate(mass_intgrp_swopp = 0) %>%
-    mutate(bus_intgrp_stfav = 0) %>%
-    mutate(bus_intgrp_swfav = 0) %>%
-    mutate(bus_intgrp_stopp = 0) %>%
-    mutate(bus_intgrp_swopp = 0) 
-  
-  # I initialize two vectors to hold the indexes of the columns in clean_gilens
-  # that hold the favor/oppose values for mass-based and business-oriented 
-  # groups.
-  
-  mass_indexes = c(216, 217, 222, 224, 225, 230, 237, 248, 249, 256, 258)
-  business_indexes = c(218, 219, 220, 221, 223, 226 ,227, 228, 229, 231,232, 233, 
-                       234, 235, 236, 238, 239, 240, 241, 242, 243, 245, 247, 250, 
-                       251, 252, 253, 254, 255)
-  
-  # I loop through each row of the dataframe.
-  
-  for (i in nrow(df)) {
-    
-    # I loop through each of the interest group columns for each row.
-    
-    for(j in 216:258){
-      
-       # If the interest group is a mass-based interest group, I add to the
-       # appropriate counter based on the value.
-      
-       if(j %in% mass_indexes){
-          if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 2) {
-             df[i,][271] <- df[i,][271] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 1) {
-             df[i,][272] <- df[i,][272] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -2) {
-             df[i,][273] <- df[i,][273] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -1) {
-             df[i,][274] <- df[i,][274] + 1
-          } else {
-             df[i,][271] <- df[i,][271]*1
-          }
-         
-       # If the interest group is a business-oriented interest group, I add to 
-       # the appropriate counter based on the value.
-         
-       } else if(j %in% business_indexes) {
-          if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 2) {
-             df[i,][275] <- df[i,][275] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 1) {
-             df[i,][276] <- df[i,][276] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -2) {
-             df[i,][277] <- df[i,][277] + 1
-          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -1) {
-             df[i,][278] <- df[i,][278] + 1
-          } else {
-             df[i,][271] <- df[i,][271]*1
-          }
-         
-       # If the interest group is not a mass-based or business-oriented 
-       # interest group, I do nothing.
-         
-       } else {
-         df[i,][271] <- df[i,][271]*1
-       }
-        
-    }
-  }
-  
-  return(df)
-  
-}
+This table summarizes the main hypotheses of interest based on the four ideal 
+types of theory. 
 
-add_scores(clean_gilens)
+For example, for the theory of Majoritarian Electoral Democracy to be supported,
+we would expect to see only the average citizen have substantial independent 
+influence on the policy outcome.
 
-clean_gilens <- clean_gilens %>%
-  
-  # I calculate the net interest group alignment scores for mass-based interest
-  # groups and business interest groups by using the formula described in the 
-  # paper.
-  
-  mutate(mass_intgrp_align = (log(mass_intgrp_stfav + (0.5 * mass_intgrp_swfav) + 1)) - 
-                      (log(mass_intgrp_stopp + (0.5 * mass_intgrp_swopp) + 1)),
-         bus_intgrp_align = (log(bus_intgrp_stfav + (0.5 * bus_intgrp_swfav) + 1)) - 
-                      (log(bus_intgrp_stopp + (0.5 * bus_intgrp_swopp) + 1))) %>%
-  
-  # I normalize the net interest group alignment scores for mass-based interest
-  # groups and business interest groups to be on a scale from 0 to 1.
-  
-  mutate(mass_intgrp_align_norm = range01(mass_intgrp_align),
-         bus_intgrp_align_norm = range01(bus_intgrp_align)) 
+For the theory of Dominance by Economic Elites to be supported, we would expect 
+to see economic elites have the most substantial independent influence on the
+policy outcome. We would also expect some independent influence by average 
+citizens and interest groups - especially business-oriented interest groups.
 
-# ASK LE: How to make this more concise/use a loop?
-```
+The rest of the rows can be interpreted in a similar manner.
 
 ```{r generate table 1}
 # I initialize the appropriate values for sets of actors that would 
@@ -360,7 +219,60 @@ table_1 %>%
   )
 ```
 
+### Table 2 Replication
+
+This table shows the correlations between independent variables. 
+
+The authors get the following findings from this table:
+
+- The preferences of average citizens are positively and fairly highly 
+correlated, across issues, with the preferences of economic elites. This means
+average citizens might often be observed to get their preferred policy outcomes
+even if they had no independent effect on policy making. 
+
+- Net interest-group stands are not substantially correlated with the 
+preferences of average citizens. Even mass-based interest groups have a very
+modest correlation with the preferences of average citizens. This does *not*
+support Majoritarian Pluralism's prediction - that organized interests 
+taken together are good representatives of citizens as a whole.
+
+- Business-oriented interest groups have a negative correlation with the 
+preferences of average citizens. This suggests that business-oriented interest
+groups are opposed to the interests of average citizens.
+
+- There is no association between the preferences of economic elites and 
+the alignments of either mass-based or business-oriented groups. While the 
+latter finding may be surprising, this may be because economic elites broadly 
+prefer lower government spending whereas interest groups generally lobby for 
+increased spending for their specific industries.
+
+The correlation coefficients in my table are slightly different from those in
+the paper because I do not correct for correlated measurement error using
+SEM modeling (SEM modeling is outside the scope of this course). However, my 
+findings are generally quite similar except for the following differences:
+
+- The correlation coefficient between the preferences of average citizens and the 
+preferences of economic elites is much higher (0.94) than what Gilens and Page
+get (0.78). This high correlation could be partly due to factors like sampling, 
+question wording, question order, topics in the news at the time the survey 
+was in the field, and so on.
+
+- The correlation coefficient between the preferences of all interest groups and 
+the preferences of mass-based interest groups is 0.19, whereas Gilens and Page
+get 0.47. 
+
+- The correlation coefficient between the preferences of all interest groups and 
+the preferences of business-oriented interest groups is 0.64, whereas Gilens and 
+Page get 0.96.
+
+- The correlation coefficient between the preferences of mass-based interest 
+groups and the preferences of business-oriented interest groups is -0.21 and 
+statistically significant, whereas Gilens and Page get a coefficient of -0.05 
+that is not statistically significant.
+
 ```{r generate table 2}
+clean_gilens <- read_csv(file = "clean_data/clean_gilens.csv")
+
 # I select the five predictors relevant for Table 2.
 
 table_2 <- clean_gilens %>%
@@ -395,67 +307,78 @@ table_2_correlation %>%
   )
 ```
 
-Because structural equation modeling is outside the scope of this course, I 
-use OLS regression instead. I am able to check whether my results are correct
-based on Table A1 in Appendix 2 - an OLS analysis that Gilens provides that is 
-parallel to the structural equation model presented in Table 3. This difference 
-in model choice means that my tables and figure are all slightly different from 
-those shown in the paper.
+### Table 3 Replication
 
-Besides this modeling difference, I fully replicate the four tables and one 
-figure that appear in the paper.
+I replicate Table 3. This table reports bivariate results for Models 1-3. Each of 
+three independent variables (median voter, economic elite, all interest groups) 
+is modeled separately as the sole predictor of policy change. The table reports
+multivariate results for Model 4. All three independent variables are included 
+in the multivariate model. I include the standardized coefficients for Model 4
+in the footnote.
 
-b) What can you conclude? 
+Note: Because structural equation modeling is outside the scope of this course, 
+I use ordinary least squares regression instead. I am able to check whether my 
+results are correct based on Table A1 in Appendix 2 - an OLS analysis provided 
+by Gilens that is parallel to the structural equation model presented in 
+Table 3. 
 
-The results from the OLS regression due not lead to the same conclusions as 
-Gilens and Page. It would seem that the correction for measurement error and
-their choice of structural equation modeling is crucial to get their key finding
-- the fact that the median voter has no significant independent influence.
+The authors get four main findings:
 
-Based on my replicated Table 2, the 
+- When taken separately, each independent variable is strongly, positively, and 
+significantly related to policy change.
+
+- In the multivariate model, the independent influence of the median voter's 
+preferences is not significant and near-zero. This rejects the theory of 
+Majoritarian Electoral Democracy.
+
+- Economic elites have a substantial, highly significant, independent influence
+on policy outcomes.
+
+- Organized interest groups are found to have substantial independent influence 
+on policy outcomes.
 
 Based on my replicated Table 3, my coefficient values for the bivariate 
 regression models (Models 1-3) are quite similar to those in the paper. However,
 my results are significantly different when it comes to the multivariate model
-(Model 4). 
- 
-Whereas the coefficient for the median voter in Gilens and Page's paper is 
-statistically and substantively insignificant, the coefficient for the median
-voter is negative, substantial, and statistically significant in my replication.
-In other words, my replication indicates that a median voter's preference in 
-favor of a policy change is associated with a negative influence on the policy
-outcome.
+(Model 4):
 
-The extremely negative coefficient for the median voter and the extremely large
-positive coefficient for economic elites suggests the presence of 
-correlated measurement error.
+- Whereas the regression coefficient representing the median voter's influence 
+in the original paper is statistically and substantively insignificant (0.03), 
+the coefficient representing the median voter's influence is negative, 
+substantial, and statistically significant in my replication (-0.87). In other 
+words, my replication indicates that a median voter's preference in 
+favor of a policy change is associated with a *negative* influence on the policy
+outcome. It would seem that Gilens and Page's correction for correlated 
+measurement error is crucial to get to their key finding - the fact the median 
+voter has no significant independent influence.
 
+- The regression coefficient representing the economic elite's influence is much
+higher in my replication (1.61) than in the original paper (0.76).
+
+- The regression coefficient representing interest group influence is slightly 
+lower in my replication (0.49) than in the original paper (0.56).
 
 ```{r generate table 3}
 # I run a model where the preferences of the median voter is the sole predictor 
 # of policy change.
 
 model_1 <- lm(policy_change ~ pred50_norm, data = clean_gilens)
-summary(model_1)
 
 # I run a model where the preferences of the 90th percentile voter is the sole 
 # predictor of policy change.
 
 model_2 <- lm(policy_change ~ pred90_norm, data = clean_gilens)
-summary(model_2)
 
 # I run a model where the interest group alignment is the sole predictor of 
 # policy change.
 
 model_3 <- lm(policy_change ~ intgrp_align_norm, data = clean_gilens)
-summary(model_3)
 
 # I run a multivariate model where the preferences of the median voter, the 
 # preferences of the 90th percentile voter, and the interest group alignment
 # are predictors of policy change.
 
 model_4 <- lm(policy_change ~ pred50_norm + pred90_norm + intgrp_align_norm, data = clean_gilens)
-summary(model_4)
 
 # I use the procedure on p. 56 in the textbook to standardize my coefficients.
 
@@ -468,7 +391,6 @@ clean_gilens_2 <- clean_gilens %>%
          z.intgrp = (intgrp_align_norm - mean(intgrp_align_norm))/(2*sd(intgrp_align_norm)))
 
 model_5 <- lm(policy_change ~ z.pred50 + z.pred90 + z.intgrp, data = clean_gilens_2)
-summary(model_5)
 
 # I use stargazer() to format a table with 3 regressions side-by-side.
 
@@ -487,9 +409,57 @@ stargazer(model_1, model_2, model_3, model_4,
           notes.align = "l",
           notes.append = FALSE)
 ```
+### Figure 1 Replication
 
+Because the magnitudes of the coefficients reported in Table 3 are hard to 
+interpret, the authors visualize the relative influence of each set of actors. 
+They compare how the predicted probability of policy change differs when moving 
+from one point to another on their distributions of policy dispositions, while 
+holding other actors’ preferences constant at their neutral points (50% 
+favorable for average citizens and for economic elites, and a net interest-group 
+alignment score of 0). These changing probabilities, based on the coefficients 
+in Model 4 of Table 3, are line-graphed in Figure 1 along with bar graphs of 
+the underlying preference distributions.
+
+The authors get three main findings:
+
+- When one holds the preferences of interest groups and economic elites constant, 
+it makes very little difference what the average citizen prefers. The 
+probability of policy change is around the same (around 0.3) whether a tiny
+minority or a large majority of average citizens favor a proposed policy change.
+
+- When one holds the preferences of interest groups and average citizens constant, 
+it makes a large difference what economic elites prefer. When 1 out of 5 
+economic elites favor a policy, it is adopted 18% of the time. When 4 out of 5
+economic elites favor a policy, it is adopted 45% of the time.
+
+- When one holds the preferences of average citizens and economic elites constant, 
+it makes a large difference what interest groups prefer. When the Net Interest
+Group Alignment score is -2, it is adopted 21% of the time. When the Net Interest
+Group Alignment score is +2, it is adopted 39% of the time.
+
+Based on my replicated Figure 1, I get slightly different results. This makes
+sense considering the fact that my coefficients for Model 4 of Table 3 
+are significantly different from the original paper. I find that:
+
+- When one holds the preferences of interest groups and economic elites constant, 
+it makes a large difference what the average citizen prefers. When 20% of 
+average citizens favor a proposed policy change, it is adopted 60% of the time.
+When 80% of average citizens favor a proposed policy change, it is adopted 47% 
+of the time.
+
+- When one holds the preferences of interest groups and average citizens constant, 
+it makes a large difference what economic elites prefer. When 1 out of 5 
+economic elites favor a policy, it is adopted 42% of the time. When 4 out of 5
+economic elites favor a policy, it is adopted 65% of the time.
+
+- When one holds the preferences of average citizens and economic elites constant, 
+it makes a large difference what interest groups prefer. When the Net Interest
+Group Alignment score is -2, it is adopted 31% of the time. When the Net Interest
+Group Alignment score is +2, it is adopted 76% of the time.
 
 ```{r figure 1}
+# I pull out the coefficients from Model 4 to use in the plots.
 
 b <- coef(model_4)
 
@@ -525,18 +495,19 @@ plot_1 <- clean_gilens %>%
       
       # I specify the name and limits of the lefthand axis.
       
-      name = "Predicted probability of adoption",
+      name = "Predicted \n probability \n of adoption",
       limits = c(0, 0.7),
       
       # I specify the name and limits of the second axis by transforming
       # the first axis.
       
       sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
+                          name = "Percent of cases \n (grey columns)")
     ) +
     labs(title = "Average Citizens' Preferences",
          x = "Percent favoring proposed policy change") +
-    theme_classic()
+    theme_classic() +
+    theme(axis.text=element_text(size=6))
 
 # I create the second plot in Figure 1.
 
@@ -570,18 +541,19 @@ plot_2 <- clean_gilens %>%
       
       # I specify the name and limits of the lefthand axis.
       
-      name = "Predicted probability of adoption",
+      name = "Predicted \n probability \n of adoption",
       limits = c(0, 0.7),
       
       # I specify the name and limits of the second axis by transforming
       # the first axis.
       
       sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
+                          name = "Percent of cases \n (grey columns)")
     ) +
     labs(title = "Economic Elites' Preferences",
          x = "Percent favoring proposed policy change") +
-    theme_classic()
+    theme_classic() +
+    theme(axis.text=element_text(size=6))
 
 # I create the third graph in Figure 1.
 
@@ -611,27 +583,65 @@ plot_3 <- clean_gilens %>%
       
       # I specify the name and limits of the lefthand axis.
       
-      name = "Predicted probability of adoption",
+      name = "Predicted \n probability \n of adoption",
       limits = c(0, 0.7),
       
       # I specify the name and limits of the second axis by transforming
       # the first axis.
       
       sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
+                          name = "Percent of cases \n (grey columns)")
     ) +
     labs(title = "Interest Group Alignments",
          x = "Net interest groups in support or opposition") +
-    theme_classic()
+    theme_classic() +
+    theme(axis.text=element_text(size=6))
 
-grid.arrange(
-  plot_1,
-  plot_2,
-  plot_3,
-  nrow = 3,
-  top = "Figure 1. \n Predicted probability of policy adoption (dark \nlines, left axes) by policy disposition; the \ndistribution of preferences (gray columns,\n right axes"
+# I stack all 3 plots on top of each other to form Figure 1.
+
+title <- ggdraw() + draw_label("Figure 1. Predicted probability of policy adoption (dark lines, left axes) \n by policy disposition; the distribution of preferences (gray columns, right axes)", fontface='bold')
+
+plot_grid(
+  title, plot_1, plot_2, plot_3,
+  ncol = 1,
+  rel_heights=c(0.4, 1, 1, 1)
 )
 ```
+
+### Table 4 Replication
+
+This table reports results for a multivariate analysis regressing the policy
+outcome on the preferences of average citizens, the preferences of economic 
+elites, the preferenes of mass-based interest groups, and the preferences of
+business-oriented interest groups. 
+
+The authors get four main findings:
+
+- The coefficients for both mass-based and business-oriented interest groups
+are positive and highly significant - but the coefficient for business groups 
+is nearly twice as large as that for the mass groups. This supports the 
+predictions of Biased Pluralism theories. Gilens and Page suggest that the 
+advantage of business-oriented interest groups comes down to two factors: 
+numerical advantage and relative cohesion. There are around twice as many 
+business-oriented groups engaged on each policy issue. In addition, business 
+groups are rarely found  on both sides of a proposed policy change.
+
+- The findings in Table 3 are confirmed in this analysis. The preferences of 
+average citizens are still near-zero and not significant. Economic elites 
+still have a substantial, positive, independent impact.
+
+My coefficients for both mass-based and business-oriented interest groups are
+fairly similar to the original paper. However, because I use OLS regression 
+instead of SEM modeling, I get slightly different results for the other
+two coefficients. My results here are consistent with my observations
+for my replication. Table 3.
+
+- My coefficient representing the influence of average citizens was substantial,
+negative, and significant (-0.895) whereas the same coefficient in the original
+paper was positive, near-zero, and not significant (0.05). 
+
+- My coefficient representing the influence of economic elites was (1.662) 
+was much higher than the same coefficient in the original paper (0.78). 
 
 ```{r generate table 4}
 # I run a multivariate model where the preferences of the median voter, the 
@@ -640,7 +650,6 @@ grid.arrange(
 # change.
 
 model_6 <- lm(policy_change ~ pred50_norm + pred90_norm + mass_intgrp_align_norm + bus_intgrp_align_norm, data = clean_gilens)
-summary(model_6)
 
 # I use stargazer() to format a table of the regression output.
 
@@ -664,249 +673,158 @@ stargazer(model_6,
 
 I extended the replication by adding in a variable to indicate whether the
 party of the President in the year of the survey question was a Democrat or a 
-Republican.
+Republican. I was curious about whether Democratic or Republican control of 
+the presidency was more associated with policy change.
 
-I was curious about whether certain party control was associated with better or
-worse governmental responsiveness to the median voter.
+```{r extension part 1}
 
-```{r regenerate table 3 for extension}
-
-# I generate the equivalent of Table 3 - except this time with logistic 
-# regressions instead of OLS regressions. I call this Table 5.
-
-# I run a model where the preferences of the median voter is the sole predictor 
-# of policy change.
-
-model_1.logit <- glm(formula = policy_change ~ pred50_norm, 
-                     family = binomial(link = "logit"), 
-                     data = clean_gilens)
-summary(model_1.logit)
-
-# I run a model where the preferences of the 90th percentile voter is the sole 
-# predictor of policy change.
-
-model_2.logit <- glm(formula = policy_change ~ pred90_norm, 
-               family = binomial(link = "logit"), 
-               data = clean_gilens)
-summary(model_2.logit)
-
-# I run a model where the interest group alignment is the sole predictor of 
-# policy change.
-
-model_3.logit <- glm(formula = policy_change ~ intgrp_align_norm, 
-                     family = binomial(link = "logit"), 
-                     data = clean_gilens)
-summary(model_3.logit)
+clean_gilens_extension <- clean_gilens %>%
+  
+  # I add a variable to indicate the party of the President in any given year.
+  # 1 is Republican, 0 is Democrat.
+  
+  mutate(party_pres = if_else(year >= 1981 & year <= 1992 | 
+                              year >= 2001, 1, 0))
 
 # I run a multivariate model where the preferences of the median voter, the 
-# preferences of the 90th percentile voter, and the interest group alignment
-# are predictors of policy change.
+# preferences of the 90th percentile voter, net interest group alignment,
+# and party of the President are predictors of policy change.
 
-model_4.logit <- glm(formula = policy_change ~ pred50_norm + pred90_norm + intgrp_align_norm, 
-                     family = binomial(link = "logit"), 
-                     data = clean_gilens)
-summary(model_4.logit)
+model_7 <- lm(policy_change ~ pred50_norm + pred90_norm + 
+                intgrp_align_norm + party_pres, 
+              data = clean_gilens_extension)
+summary(model_7)
 
-model_5.logit <- glm(policy_change ~ z.pred50 + z.pred90 + z.intgrp, 
-                     family = binomial(link = "logit"), 
-                     data = clean_gilens_2)
-summary(model_5.logit)
+# I use invlogit() to convert to predicted probabilities for policy change to
+# be adopted. This makes the coefficient more interpretable.
 
-# I use stargazer() to format a table with 3 regressions side-by-side.
-
-stargazer(model_1.logit, model_2.logit, model_3.logit, model_4.logit, 
-          type = "html", 
-          title = "Table 3B. Policy outcomes and the policy preferences of average citizens, economic elites, and interest groups",
-          align = TRUE,
-          dep.var.labels = c("Policy change"),
-          column.labels = c("Model 1", "Model 2", "Model 3", "Model 4"),
-          covariate.labels = c("Preferences of average citizens", 
-                               "Preferences of economic elites", 
-                               "Alignment of interest groups"),
-          omit.stat=c("LL", "n"), 
-          no.space=TRUE,
-          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest-Group Alignment Index described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. The standardized coefficients for model 4 in this table are -1.11, 2.03, and .69 for average citizens, economic elites, and interest groups, respectively. N = 1,779."),
-          notes.align = "l",
-          notes.append = FALSE)
-
-# ASK LE: How to bootstrap standard errors?
-# ASK LE: Does it make sense to use a logistic regression for extension if predictors are already the logits of the imputed percents?
-```
-
-```{r regenerate figure 1 for extension}
-
-b <- coef(model_4.logit)
-
-# I create the first plot in Figure 1.
-
-plot_1 <- clean_gilens %>%
-  
-  # I multiply pred50_sw to obtain a number that represents the percentage 
-  # of median voters in favor of a proposed policy change.
-  
-  mutate(pred50_sw_percent = 100*pred50_sw) %>%
-  ggplot(aes(pred50_sw_percent)) +
-  
-    # I use a histogram to display the underlying preference distribution.
-  
-    geom_histogram(aes(y = after_stat(count/sum(count))),
-                   alpha = 0.5, 
-                   bins = 10, 
-                   position = "identity") +
-  
-    # I use the coefficients from my Model 4 output and the neutral points of 
-    # the other two actors - 0.5 for economic elites and 0 for interest group
-    # alignment - to construct a line graph that shows how the predicted 
-    # probability of policy change alters when moving from one point to another 
-    # on the distribution of policy dispositions.
-  
-    geom_line(aes(y = invlogit(b[1] + b[2]*pred50_norm + b[3]*0.5 + b[4]*0))) +
-    xlim(0, 100) +
-    
-    # I customize the Y scales to have dual axes.
-  
-    scale_y_continuous(
-      
-      # I specify the name and limits of the lefthand axis.
-      
-      name = "Predicted probability of adoption",
-      limits = c(0, 0.7),
-      
-      # I specify the name and limits of the second axis by transforming
-      # the first axis.
-      
-      sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
-    ) +
-    labs(title = "Average Citizens' Preferences",
-         x = "Percent favoring proposed policy change") +
-    theme_classic()
-
-# I create the second plot in Figure 1.
-
-plot_2 <- clean_gilens %>%
-  
-  # I multiply pred90_sw to obtain a number that represents the percentage 
-  # of median voters in favor of a proposed policy change.
-  
-  mutate(pred90_sw_percent = 100*pred90_sw) %>%
-  ggplot(aes(pred90_sw_percent)) +
-  
-    # I use a histogram to display the underlying preference distribution.
-  
-    geom_histogram(aes(y = after_stat(count/sum(count))),
-                   alpha = 0.5, 
-                   bins = 10, 
-                   position = "identity") +
-  
-    # I use the coefficients from my Model 4 output and the neutral points of 
-    # the other two actors - 0.5 for average citizens and 0 for interest group
-    # alignment - to construct a line graph that shows how the predicted 
-    # probability of policy change alters when moving from one point to another 
-    # on the distribution of policy dispositions.
-  
-    geom_line(aes(y = invlogit(b[1] + b[2]*0.5 + b[3]*pred90_norm + b[4]*0))) +
-    xlim(0, 100) +
-    
-    # I customize the Y scales to have dual axes.
-  
-    scale_y_continuous(
-      
-      # I specify the name and limits of the lefthand axis.
-      
-      name = "Predicted probability of adoption",
-      limits = c(0, 0.7),
-      
-      # I specify the name and limits of the second axis by transforming
-      # the first axis.
-      
-      sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
-    ) +
-    labs(title = "Economic Elites' Preferences",
-         x = "Percent favoring proposed policy change") +
-    theme_classic()
-
-# I create the third graph in Figure 1.
-
-plot_3 <- clean_gilens %>%
-  
-  ggplot(aes(intgrp_align)) +
-  
-    # I use a histogram to display the underlying preference distribution.
-  
-    geom_histogram(aes(y = after_stat(count/sum(count))),
-                   alpha = 0.5, 
-                   bins = 12, 
-                   position = "identity") +
-  
-    # I use the coefficients from my Model 4 output and the neutral points of 
-    # the other two actors - 0.5 for average citizens and 0.5 got economic 
-    # elites - to construct a line graph that shows how the predicted 
-    # probability of policy change alters when moving from one point to another 
-    # on the distribution of policy dispositions.
-  
-    geom_line(aes(y = invlogit(b[1] + b[2]*0.5 + b[3]*0.5 + b[4]*intgrp_align_norm))) +
-    xlim(-4, 4) +
-    
-    # I customize the Y scales to have dual axes.
-  
-    scale_y_continuous(
-      
-      # I specify the name and limits of the lefthand axis.
-      
-      name = "Predicted probability of adoption",
-      limits = c(0, 0.7),
-      
-      # I specify the name and limits of the second axis by transforming
-      # the first axis.
-      
-      sec.axis = sec_axis(trans = ~.*0.5714, 
-                          name = "Percent of cases (grey columns)")
-    ) +
-    labs(title = "Interest Group Alignments",
-         x = "Net interest groups in support or opposition") +
-    theme_classic()
-
-grid.arrange(
-  plot_1,
-  plot_2,
-  plot_3,
-  nrow = 3,
-  top = "Figure 1B. \n Predicted probability of policy adoption (dark \nlines, left axes) by policy disposition; the \ndistribution of preferences (gray columns,\n right axes"
-)
-```
-```{r regenerate table 4 for extension}
-# I run a multivariate model where the preferences of the median voter, the 
-# preferences of the 90th percentile voter, and the interest group alignment
-# cores of mass-based and business interest groups are predictors of policy 
-# change.
-
-model_6.logit <- glm(policy_change ~ pred50_norm + pred90_norm + mass_intgrp_align_norm + bus_intgrp_align_norm, 
-                      family = binomial(link = "logit"), 
-                     data = clean_gilens)
-summary(model_6.logit)
+c = coef(model_7)
+invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*0)
+invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*1)
 
 # I use stargazer() to format a table of the regression output.
 
-stargazer(model_6.logit,
+stargazer(model_7,
           type = "html", 
-          title = "Table 4. The separate policy impact of business- oriented and mass-based interest groups",
+          title = "Table 5. The impact of the party of the President on policy outcomes",
           align = TRUE,
           dep.var.labels = c("Policy change"),
           covariate.labels = c("Average citizens’ preferences", 
                                "Economic elites’ preferences", 
-                               "Mass-based interest groups",
-                               "Business interest groups"),
+                               "Alignment of interest groups",
+                               "Republican president"),
           omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
           no.space=TRUE,
           notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest- Group Alignment Indices described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. N = 1,779."),
           notes.align = "l",
           notes.append = FALSE)
 ```
+Based on the regression output, the other coefficients are fairly similar to 
+what they were in Table 3. To interpret the party_pres coefficient, we can 
+convert to predicted probabilities - similar to what we did for Figure 1.
+
+When one holds the preferences of average citizens, economic elites, and
+interest groups constant, the party of the President is associated with
+some predictive difference. When the president is Democratic, proposed policy
+changes are adopted 53% of the time. When the president is Republican, proposed 
+policy changes are adopted 55% of the time. The difference seems relatively 
+small.
+
+I also extended the replication by adding in a statistical interaction between 
+party of the President and preferences of average citizens. I was curious about 
+whether there was any differential responsiveness by the different parties to 
+the average citizen.
+
+```{r extension part 2}
+# I run a multivariate model where the preferences of the median voter, the 
+# preferences of the 90th percentile voter, net interest group alignment,
+# party of the President, and an interaction between party of the President and
+# preferences of average citizens are predictors of policy change.
+
+model_8 <- lm(policy_change ~ pred50_norm + pred90_norm + intgrp_align_norm +
+              party_pres + party_pres:pred50_norm, 
+              data = clean_gilens_extension)
+summary(model_8)
+
+# I use invlogit() to convert to predicted probabilities for policy change to
+# be adopted. This makes the coefficient more interpretable.
+
+d = coef(model_8)
+invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
+invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
+
+invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.2)
+invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.8)
+
+# I use stargazer() to format a table of the regression output.
+
+stargazer(model_8,
+          type = "html", 
+          title = "Table 5. The impact of the party of the President on policy outcomes",
+          align = TRUE,
+          dep.var.labels = c("Policy change"),
+          covariate.labels = c("Average citizens’ preferences", 
+                               "Economic elites’ preferences", 
+                               "Alignment of interest groups",
+                               "Republican president",
+                               "Average citizens' preferences*Republican president"),
+          omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
+          no.space=TRUE,
+          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest-Group Alignment Indices described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. N = 1,779."),
+          notes.align = "l",
+          notes.append = FALSE)
+```
+
+It appears that after adding this interaction, the coefficient for both 
+party_pres and the interaction coefficient are no longer statistically
+significant. #ASK: Why does statistical significance change?
+
+The party_pres coefficient represents the influence of the party of the 
+President on policy outcomes when pred50_norm is equal to 0 - that is, when the 
+average citizen is completely opposed to a given policy. 
+
+The pred50_norm:party_pres coefficient represents the change in pred50_norm
+if the party of the President goes from Democrat to Republican.
+
+To more easily interpret these coefficients, we can convert to predicted 
+probabilities.
+
+When one holds the preferences of economic elites and interest groups constant, 
+the party of the President is associated with some differential responsiveness 
+to the average citizen. 
+
+- When the president is Democratic and the 1 out of 5 average citizens favors 
+the proposed policy change, the policy is adopted 60% of the time.
+
+- When the president is Democratic and the 4 out of 5 average citizens favors 
+the proposed policy change, the policy is adopted 45% of the time.
+
+- When the president is Republican and the 1 out of 5 average citizens favors 
+the proposed policy change, the policy is adopted 60% of the time.
+
+- When the president is Republican and the 4 out of 5 average citizens favors 
+the proposed policy change, the policy is adopted 50% of the time.
+
+It appears that Republican presidents are more responsive to the average
+citizen. This is surprising - as I would have expected a Democratic president
+to be associated with more responsiveness to the average citizen.
+
+## Conclusion
+
+summarizing your work, important findings, limitations, etc.?
+– You may also want to discuss whether there are some future directions you want to explore in this part.
+
+## Data Source
+
+The data for this paper can be found here: https://www.russellsage.org/datasets/economic-inequality-and-political-representation. 
 
 ## Bibliography
 
-Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics
-Tables. R package version 5.2.2. https://CRAN.R-project.org/package=stargazer
+Bartels, Larry M. Unequal Democracy: The Political Economy of the New Gilded Age. NEW YORK; PRINCETON; OXFORD: Princeton University Press, 2008. Accessed May 4, 2021. http://www.jstor.org/stable/j.ctt7t9ks.
+
+Gilens, M., & Page, B. (2014). Testing Theories of American Politics: Elites, Interest Groups, and Average Citizens. Perspectives on Politics, 12(3), 564-581. doi:10.1017/S1537592714001595
+
+O'Brien, Robert M. "Correcting Measures of Relationship between Aggregate-Level Variables." Sociological Methodology 21 (1994): 125-65
+
+O'Brien, Robert M. "Correcting Measures of Relationship between Aggregate-Level Variables for Both Unreliability and Correlated Errors: An Empirical Example." Social Science Research 27, no. 2 (Jun 1998): 218-34.
 
