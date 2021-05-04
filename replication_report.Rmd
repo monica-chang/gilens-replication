@@ -25,9 +25,121 @@ library(gridExtra)
 
 ## Overview of the original paper
 
-## What I did for the replication
+### What question(s) did the author(s) ask?  
 
-```{r clean data}
+In the paper "Testing Theories of American Politics: Elites, Interest Groups, 
+and Average Citizens" by Martin Gilens and Benjamin Page, the authors attempt to
+answer the following question: Which of the four theoretical traditions in the 
+study of American politics - Majoritarian Electoral Democracy, Economic-Elite 
+Domination, Majoritarian Pluralism, Biased Pluralism - provides the most 
+accurate picture of American politics?
+
+These theories each offer different predictions over how much independent 
+influence the median voter, economic elites, mass-based interest groups, and 
+business-oriented interest groups have on public policy:
+
+- Majoritarian Electoral Democracy posits that only the median voter has 
+substantial independent influence on policy outcomes.
+
+- Economic-Elite Domination posits that economic elites have the most
+independent influence on policy outcomes, with the median voter and 
+interest groups playing a smaller role.
+
+- Majoritarian Pluralism posits that only organized interest groups will have
+substantial independent influence on policy outcomes. In particular, this 
+theory assumes that the stands of all interest groups, taken together, generally 
+represent the preferences of average citizens. 
+
+- Biased Pluralism posits that only organized interest groups will have
+substantial independent influence on policy outcomes. In particular, this theory
+predicts that business-oriented interest groups play a larger role.
+
+Gilens and Page aim to test these four theoretical traditions within one
+statistical model.
+
+### How did they create their dataset? What were their variables of interest? 
+
+To conduct this analysis, Gilens assembled a unique dataset of 1,779 instances 
+between 1981 and 2002 in which a national survey of the general public asked a 
+favor/oppose question about a proposed policy change.
+
+For each survey question, Gilens' team did the following work to prepare a 
+unique dataset:
+
+- Use the available income breakdown for each survey question's 
+respondents to estimate the opinions of respondents at the 10th income 
+percentile, the 50th percentile, and the 90th percentile. 
+
+- Record how many engaged powerful interest groups were strongly in favor of, 
+somewhat in favor of, somewhat opposed, or strongly opposed to the proposed 
+policy change in each question. This allowed Gilens to develop a measure of
+Net Interest Group Alignment for all interest groups, mass-based interest 
+groups, and business-oriented interest groups.
+
+- Track whether the proposed policy change was actually adopted within 4 years
+after the question was asked.
+
+Predictor variables:
+
+- Policy preferences at the 50th income percentile work as a proxy for the 
+preferences of the median voter.
+
+- Policy preferences at the 90th income percentile work as a proxy for the 
+preferences of the economic elite.
+
+- Net Interest Group Alignment scores work as a proxy for the preferences
+of all interest groups, mass-based interest groups, and business-oriented 
+interest groups.
+
+Outcome variable:
+
+- Whether or not the proposed policy change was adopted within 4 years.
+
+### What analyses did they run? What models did they use?
+
+First, they create a correlation matrix (Table 2) to assess the correlation
+between independent variables. This helps test one of Majoritarian Pluralism's
+predictions - that the stands of all interest groups are positively correlated 
+with the preferences of average citizens. 
+
+Then, they use structural equation modeling to regress policy outcome on
+the preferences of the median voter, the preferences of the economic elite,
+and the preferences of all interest groups (Table 3) to evaluate support 
+for Majoritarian Electoral Democracy, Economic Elite Domination, and interest
+group pluralism.
+
+Finally, they regress policy outcome on the preferences of the median voter, 
+the preferences of the economic elite, the preferences of mass-based interest 
+groups, and the preferences of business-oriented interest groups to distinguish
+between Majoritarian Pluralism and Biased Pluralism (Table 4).
+
+### Why did they choose structural equation modeling?
+
+They chose structural equation modeling to correct for correlated measurement 
+error. Because the measures for two independent variables - the preferences of 
+the 50th percentile voter and the preferences of the 90th percentile voter - 
+come from a single data source (the same set of national opinion surveys), it 
+is highly likely that the errors of these two measures are positively correlated 
+with each other. These correlated errors tend to produce upwardly biased
+statistical relationships between the two independent variables. This decision 
+is further explained in Appendix 2 of their paper.
+
+### What did they conclude?
+
+Gilens and Page conclude that economic elites and business-oriented interest 
+groups have substantial independent impacts on U.S. policy, while mass-based 
+interest groups and average citizens have little or no independent influence. 
+Their results support theories of Economic-Elite Domination and Biased 
+Pluralism.
+
+## Overview of my replication
+
+For my replication, I first cleaned Gilens' publicly provided data according 
+to the criteria laid out in the paper (excluding questions without an
+income breakdown, where the policy was partially adopted, or if the policy 
+change required a Constitutional amendment or Supreme Court ruling).
+
+```{r clean data, include = FALSE}
 # I load the data from SPSS files from here:
 # https://www.russellsage.org/datasets/economic-inequality-and-political-representation 
 
@@ -55,14 +167,29 @@ clean_gilens <- gilens %>%
   # None of the remaining questions require a Constitutional amendment or a 
   # new Supreme Court ruling to bring about the proposed policy change - so
   # I do not need to apply an additional filter.
-
 ```
 
-```{r calculate and normalize predictors}
+After filtering the dataset to only include the 1,779 survey questions that
+met the criteria, I cleaned the dataset to prepare it for modeling:
+
+I turned the outcome variable into a dichotomous variable so that it was coded 1 
+if the proposed policy change took place within four years of the survey date 
+and 0 if it did not.
+
+I calculated Net Interest Group Alignment scores for all interest groups,
+mass-based interest groups, and business-oriented interest groups for each
+survey question by using the formula described in the paper:
+
+$$ Net Interest-Group Alignment = ln(# Strongly Favor + [0.5 * # Somewhat Favor] + 1) - ln(# Strongly Oppose + [0.5 * # Somewhat Oppose] + 1). $$
+I took the logits of the imputed percent of respondents at the 
+50th and 90th income percentiles that favored the proposed policy change. 
+
+I standardized all predictors to be on a scale of 0 to 1. 
+
+```{r calculate and normalize predictors, include = FALSE}
 clean_gilens <- clean_gilens %>%
   
-  # To use a logistic regression, I turn the outcome variable into a 
-  # dichotomous variable.
+  # I turn the outcome variable into a dichotomous variable.
   
   mutate(policy_change = if_else(outcome > 0, 1, 0)) %>%
   
@@ -88,212 +215,89 @@ clean_gilens <- clean_gilens %>%
 ```
 
 ```{r add interest group alignment scores for mass-based & business interest groups}
+  
+add_scores <- function(df){
+  
+  df <- df %>%
+    # I initialize 8 columns to track the number of mass-based and business
+    # interest groups that are strongly in favor, somewhat in favor, somewhat
+    # opposed, or strongly opposed to the policy change in each question.
+    
+    mutate(mass_intgrp_stfav = 0) %>%
+    mutate(mass_intgrp_swfav = 0) %>%
+    mutate(mass_intgrp_stopp = 0) %>%
+    mutate(mass_intgrp_swopp = 0) %>%
+    mutate(bus_intgrp_stfav = 0) %>%
+    mutate(bus_intgrp_swfav = 0) %>%
+    mutate(bus_intgrp_stopp = 0) %>%
+    mutate(bus_intgrp_swopp = 0) 
+  
+  # I initialize two vectors to hold the indexes of the columns in clean_gilens
+  # that hold the favor/oppose values for mass-based and business-oriented 
+  # groups.
+  
+  mass_indexes = c(216, 217, 222, 224, 225, 230, 237, 248, 249, 256, 258)
+  business_indexes = c(218, 219, 220, 221, 223, 226 ,227, 228, 229, 231,232, 233, 
+                       234, 235, 236, 238, 239, 240, 241, 242, 243, 245, 247, 250, 
+                       251, 252, 253, 254, 255)
+  
+  # I loop through each row of the dataframe.
+  
+  for (i in nrow(df)) {
+    
+    # I loop through each of the interest group columns for each row.
+    
+    for(j in 216:258){
+      
+       # If the interest group is a mass-based interest group, I add to the
+       # appropriate counter based on the value.
+      
+       if(j %in% mass_indexes){
+          if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 2) {
+             df[i,][271] <- df[i,][271] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 1) {
+             df[i,][272] <- df[i,][272] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -2) {
+             df[i,][273] <- df[i,][273] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -1) {
+             df[i,][274] <- df[i,][274] + 1
+          } else {
+             df[i,][271] <- df[i,][271]*1
+          }
+         
+       # If the interest group is a business-oriented interest group, I add to 
+       # the appropriate counter based on the value.
+         
+       } else if(j %in% business_indexes) {
+          if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 2) {
+             df[i,][275] <- df[i,][275] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == 1) {
+             df[i,][276] <- df[i,][276] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -2) {
+             df[i,][277] <- df[i,][277] + 1
+          } else if (!is.na(df[i,][j][[1]][1]) & df[i,][j][[1]][1] == -1) {
+             df[i,][278] <- df[i,][278] + 1
+          } else {
+             df[i,][271] <- df[i,][271]*1
+          }
+         
+       # If the interest group is not a mass-based or business-oriented 
+       # interest group, I do nothing.
+         
+       } else {
+         df[i,][271] <- df[i,][271]*1
+       }
+        
+    }
+  }
+  
+  return(df)
+  
+}
+
+add_scores(clean_gilens)
+
 clean_gilens <- clean_gilens %>%
-  
-  # I initialize 8 columns to track the number of mass-based and business
-  # interest groups that are strongly in favor, somewhat in favor, somewhat
-  # opposed, or strongly opposed to the policy change in each question.
-  
-  mutate(mass_intgrp_stfav = 0) %>%
-  mutate(mass_intgrp_swfav = 0) %>%
-  mutate(mass_intgrp_stopp = 0) %>%
-  mutate(mass_intgrp_swopp = 0) %>%
-  mutate(bus_intgrp_stfav = 0) %>%
-  mutate(bus_intgrp_swfav = 0) %>%
-  mutate(bus_intgrp_stopp = 0) %>%
-  mutate(bus_intgrp_swopp = 0) %>%
-  
-  # I add 1 to the counter for each mass-based interest groups 
-  # strongly in favor of the policy change in each question.
-  
-  mutate(mass_intgrp_stfav = ifelse(!is.na(aarp) & aarp == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(aflcio) & aflcio == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(american_federationof_state_countyand_municipal_employees) & american_federationof_state_countyand_municipal_employees == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(american_israel_public_affairs_committee) & american_israel_public_affairs_committee == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(american_legion) & american_legion == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(christian_coalition) & christian_coalition == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(international_brotherhoodof_teamsters) & international_brotherhoodof_teamsters == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(national_rifle_association) & national_rifle_association == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(national_rightto_life_committee) & national_rightto_life_committee == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(united_auto_workersunion) & united_auto_workersunion == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  mutate(mass_intgrp_stfav = ifelse(!is.na(veteransof_foreign_warsofthe_u_s) & veteransof_foreign_warsofthe_u_s == 2, mass_intgrp_stfav + 1, mass_intgrp_stfav)) %>%
-  
-  # I add 1 to the counter for each mass-based interest groups 
-  # somewhat in favor of the policy change in each question.
-  
-  mutate(mass_intgrp_swfav = ifelse(!is.na(aarp) & aarp == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(aflcio) & aflcio == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(american_federationof_state_countyand_municipal_employees) & american_federationof_state_countyand_municipal_employees == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(american_israel_public_affairs_committee) & american_israel_public_affairs_committee == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(american_legion) & american_legion == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(christian_coalition) & christian_coalition == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(international_brotherhoodof_teamsters) & international_brotherhoodof_teamsters == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(national_rifle_association) & national_rifle_association == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(national_rightto_life_committee) & national_rightto_life_committee == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(united_auto_workersunion) & united_auto_workersunion == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  mutate(mass_intgrp_swfav = ifelse(!is.na(veteransof_foreign_warsofthe_u_s) & veteransof_foreign_warsofthe_u_s == 1, mass_intgrp_swfav + 1, mass_intgrp_swfav)) %>%
-  
-  # I add 1 to the counter for each mass-based interest groups 
-  # strongly opposed to the policy change in each question.
-  
-  mutate(mass_intgrp_stopp = ifelse(!is.na(aarp) & aarp == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(aflcio) & aflcio == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(american_federationof_state_countyand_municipal_employees) & american_federationof_state_countyand_municipal_employees == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(american_israel_public_affairs_committee) & american_israel_public_affairs_committee == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(american_legion) & american_legion == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(christian_coalition) & christian_coalition == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(international_brotherhoodof_teamsters) & international_brotherhoodof_teamsters == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(national_rifle_association) & national_rifle_association == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(national_rightto_life_committee) & national_rightto_life_committee == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(united_auto_workersunion) & united_auto_workersunion == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  mutate(mass_intgrp_stopp = ifelse(!is.na(veteransof_foreign_warsofthe_u_s) & veteransof_foreign_warsofthe_u_s == -2, mass_intgrp_stopp + 1, mass_intgrp_stopp)) %>%
-  
-  # I add 1 to the counter for each mass-based interest groups 
-  # somewhat opposed to the policy change in each question.
-  
-  mutate(mass_intgrp_swopp = ifelse(!is.na(aarp) & aarp == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(aflcio) & aflcio == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(american_federationof_state_countyand_municipal_employees) & american_federationof_state_countyand_municipal_employees == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(american_israel_public_affairs_committee) & american_israel_public_affairs_committee == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(american_legion) & american_legion == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(christian_coalition) & christian_coalition == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(international_brotherhoodof_teamsters) & international_brotherhoodof_teamsters == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(national_rifle_association) & national_rifle_association == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(national_rightto_life_committee) & national_rightto_life_committee == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(united_auto_workersunion) & united_auto_workersunion == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  mutate(mass_intgrp_swopp = ifelse(!is.na(veteransof_foreign_warsofthe_u_s) & veteransof_foreign_warsofthe_u_s == -1, mass_intgrp_swopp + 1, mass_intgrp_swopp)) %>%
-  
-  # I add 1 to the counter for each business interest groups 
-  # strongly in favor of the policy change in each question.
-  
-  mutate(bus_intgrp_stfav = ifelse(!is.na(airlines) & airlines == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(american_bankers_association) & american_bankers_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(american_councilof_life_insurance) & american_councilof_life_insurance == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(american_farm_bureau_federation) & american_farm_bureau_federation == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(american_hospital_association) & american_hospital_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(american_medical_association) & american_medical_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(associationof_trial_lawyers) & associationof_trial_lawyers == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(automobilecompanies) & automobilecompanies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(chamberof_commerce) & chamberof_commerce == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(computersoftwareandhardware) & computersoftwareandhardware == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(credit_union_national_association) & credit_union_national_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(defensecontractors) & defensecontractors == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(electriccompanies) & electriccompanies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(health_insurance_association) & health_insurance_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(independent_insurance_agentsof_america) & independent_insurance_agentsof_america == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(motion_picture_associationof_america) & motion_picture_associationof_america == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_associationof_broadcasters) & national_associationof_broadcasters == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_associationof_home_builders) & national_associationof_home_builders == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_associationof_manufacturers) & national_associationof_manufacturers == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_associationof_realtors) & national_associationof_realtors == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_beer_wholesalers_association) & national_beer_wholesalers_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_federationof_independent_business) & national_federationof_independent_business == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(national_restaurant_association) & national_restaurant_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(oil_companies) & oil_companies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(pharmaceutical_research_manufacturers) & pharmaceutical_research_manufacturers == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(recording_industry_association) & recording_industry_association == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(securitiesandinvestmentcompanies) & securitiesandinvestmentcompanies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(telephonecompanies) & telephonecompanies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  mutate(bus_intgrp_stfav = ifelse(!is.na(tobbacocompanies) & tobbacocompanies == 2, bus_intgrp_stfav + 1, bus_intgrp_stfav)) %>%
-  
-  # I add 1 to the counter for each business interest groups 
-  # somewhat in favor of the policy change in each question.
-  
-  mutate(bus_intgrp_swfav = ifelse(!is.na(airlines) & airlines == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(american_bankers_association) & american_bankers_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(american_councilof_life_insurance) & american_councilof_life_insurance == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(american_farm_bureau_federation) & american_farm_bureau_federation == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(american_hospital_association) & american_hospital_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(american_medical_association) & american_medical_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(associationof_trial_lawyers) & associationof_trial_lawyers == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(automobilecompanies) & automobilecompanies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(chamberof_commerce) & chamberof_commerce == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(computersoftwareandhardware) & computersoftwareandhardware == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(credit_union_national_association) & credit_union_national_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(defensecontractors) & defensecontractors == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(electriccompanies) & electriccompanies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(health_insurance_association) & health_insurance_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(independent_insurance_agentsof_america) & independent_insurance_agentsof_america == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(motion_picture_associationof_america) & motion_picture_associationof_america == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_associationof_broadcasters) & national_associationof_broadcasters == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_associationof_home_builders) & national_associationof_home_builders == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_associationof_manufacturers) & national_associationof_manufacturers == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_associationof_realtors) & national_associationof_realtors == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_beer_wholesalers_association) & national_beer_wholesalers_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_federationof_independent_business) & national_federationof_independent_business == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(national_restaurant_association) & national_restaurant_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(oil_companies) & oil_companies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(pharmaceutical_research_manufacturers) & pharmaceutical_research_manufacturers == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(recording_industry_association) & recording_industry_association == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(securitiesandinvestmentcompanies) & securitiesandinvestmentcompanies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(telephonecompanies) & telephonecompanies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  mutate(bus_intgrp_swfav = ifelse(!is.na(tobbacocompanies) & tobbacocompanies == 1, bus_intgrp_swfav + 1, bus_intgrp_swfav)) %>%
-  
-  # I add 1 to the counter for each business interest groups 
-  # strongly opposed to the policy change in each question.
-  
-  mutate(bus_intgrp_stopp = ifelse(!is.na(airlines) & airlines == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(american_bankers_association) & american_bankers_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(american_councilof_life_insurance) & american_councilof_life_insurance == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(american_farm_bureau_federation) & american_farm_bureau_federation == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(american_hospital_association) & american_hospital_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(american_medical_association) & american_medical_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(associationof_trial_lawyers) & associationof_trial_lawyers == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(automobilecompanies) & automobilecompanies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(chamberof_commerce) & chamberof_commerce == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(computersoftwareandhardware) & computersoftwareandhardware == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(credit_union_national_association) & credit_union_national_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(defensecontractors) & defensecontractors == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(electriccompanies) & electriccompanies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(health_insurance_association) & health_insurance_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(independent_insurance_agentsof_america) & independent_insurance_agentsof_america == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(motion_picture_associationof_america) & motion_picture_associationof_america == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_associationof_broadcasters) & national_associationof_broadcasters == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_associationof_home_builders) & national_associationof_home_builders == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_associationof_manufacturers) & national_associationof_manufacturers == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_associationof_realtors) & national_associationof_realtors == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_beer_wholesalers_association) & national_beer_wholesalers_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_federationof_independent_business) & national_federationof_independent_business == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(national_restaurant_association) & national_restaurant_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(oil_companies) & oil_companies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(pharmaceutical_research_manufacturers) & pharmaceutical_research_manufacturers == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(recording_industry_association) & recording_industry_association == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(securitiesandinvestmentcompanies) & securitiesandinvestmentcompanies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(telephonecompanies) & telephonecompanies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  mutate(bus_intgrp_stopp = ifelse(!is.na(tobbacocompanies) & tobbacocompanies == -2, bus_intgrp_stopp + 1, bus_intgrp_stopp)) %>%
-  
-  # I add 1 to the counter for each business interest groups 
-  # somewhat opposed to the policy change in each question.
-  
-  mutate(bus_intgrp_swopp = ifelse(!is.na(airlines) & airlines == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(american_bankers_association) & american_bankers_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(american_councilof_life_insurance) & american_councilof_life_insurance == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(american_farm_bureau_federation) & american_farm_bureau_federation == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(american_hospital_association) & american_hospital_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(american_medical_association) & american_medical_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(associationof_trial_lawyers) & associationof_trial_lawyers == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(automobilecompanies) & automobilecompanies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(chamberof_commerce) & chamberof_commerce == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(computersoftwareandhardware) & computersoftwareandhardware == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(credit_union_national_association) & credit_union_national_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(defensecontractors) & defensecontractors == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(electriccompanies) & electriccompanies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(health_insurance_association) & health_insurance_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(independent_insurance_agentsof_america) & independent_insurance_agentsof_america == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(motion_picture_associationof_america) & motion_picture_associationof_america == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_associationof_broadcasters) & national_associationof_broadcasters == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_associationof_home_builders) & national_associationof_home_builders == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_associationof_manufacturers) & national_associationof_manufacturers == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_associationof_realtors) & national_associationof_realtors == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_beer_wholesalers_association) & national_beer_wholesalers_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_federationof_independent_business) & national_federationof_independent_business == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(national_restaurant_association) & national_restaurant_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(oil_companies) & oil_companies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(pharmaceutical_research_manufacturers) & pharmaceutical_research_manufacturers == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(recording_industry_association) & recording_industry_association == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(securitiesandinvestmentcompanies) & securitiesandinvestmentcompanies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(telephonecompanies) & telephonecompanies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
-  mutate(bus_intgrp_swopp = ifelse(!is.na(tobbacocompanies) & tobbacocompanies == -1, bus_intgrp_swopp + 1, bus_intgrp_swopp)) %>%
   
   # I calculate the net interest group alignment scores for mass-based interest
   # groups and business interest groups by using the formula described in the 
@@ -390,6 +394,42 @@ table_2_correlation %>%
     source_note = "Note: Entries are correlation coefficients based on OLS regression coefficients - not SEM modeling."
   )
 ```
+
+Because structural equation modeling is outside the scope of this course, I 
+use OLS regression instead. I am able to check whether my results are correct
+based on Table A1 in Appendix 2 - an OLS analysis that Gilens provides that is 
+parallel to the structural equation model presented in Table 3. This difference 
+in model choice means that my tables and figure are all slightly different from 
+those shown in the paper.
+
+Besides this modeling difference, I fully replicate the four tables and one 
+figure that appear in the paper.
+
+b) What can you conclude? 
+
+The results from the OLS regression due not lead to the same conclusions as 
+Gilens and Page. It would seem that the correction for measurement error and
+their choice of structural equation modeling is crucial to get their key finding
+- the fact that the median voter has no significant independent influence.
+
+Based on my replicated Table 2, the 
+
+Based on my replicated Table 3, my coefficient values for the bivariate 
+regression models (Models 1-3) are quite similar to those in the paper. However,
+my results are significantly different when it comes to the multivariate model
+(Model 4). 
+ 
+Whereas the coefficient for the median voter in Gilens and Page's paper is 
+statistically and substantively insignificant, the coefficient for the median
+voter is negative, substantial, and statistically significant in my replication.
+In other words, my replication indicates that a median voter's preference in 
+favor of a policy change is associated with a negative influence on the policy
+outcome.
+
+The extremely negative coefficient for the median voter and the extremely large
+positive coefficient for economic elites suggests the presence of 
+correlated measurement error.
+
 
 ```{r generate table 3}
 # I run a model where the preferences of the median voter is the sole predictor 
@@ -621,6 +661,13 @@ stargazer(model_6,
 ```
 
 ## Extension of the paper
+
+I extended the replication by adding in a variable to indicate whether the
+party of the President in the year of the survey question was a Democrat or a 
+Republican.
+
+I was curious about whether certain party control was associated with better or
+worse governmental responsiveness to the median voter.
 
 ```{r regenerate table 3 for extension}
 
