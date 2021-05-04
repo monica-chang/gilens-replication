@@ -705,8 +705,8 @@ model_7 <- lm(policy_change ~ pred50_norm + pred90_norm +
 # be adopted. This makes the coefficient more interpretable.
 
 c = coef(model_7)
-invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*0)
-invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*1)
+# invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*0)
+# invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*1)
 ```
 
 ```{r, results = "asis"}
@@ -766,11 +766,11 @@ model_8 <- lm(policy_change ~ pred50_norm + pred90_norm + intgrp_align_norm +
 # be adopted. This makes the coefficient more interpretable.
 
 d = coef(model_8)
-invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
-invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
+# invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
+# invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
 
-invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.2)
-invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.8)
+# invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.2)
+# invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.8)
 ```
 
 ```{r, results = "asis"}
@@ -807,16 +807,13 @@ When one holds the preferences of economic elites and interest groups constant,
 the party of the President is associated with some differential responsiveness 
 to the average citizen. 
 
-- When the president is Democratic and the 1 out of 5 average citizens favors 
+- When the president is Democratic and 1 out of 5 average citizens favors 
 the proposed policy change, the policy is adopted 60% of the time.
-
-- When the president is Democratic and the 4 out of 5 average citizens favors 
+- When the president is Democratic and 4 out of 5 average citizens favors 
 the proposed policy change, the policy is adopted 45% of the time.
-
-- When the president is Republican and the 1 out of 5 average citizens favors 
+- When the president is Republican and 1 out of 5 average citizens favors 
 the proposed policy change, the policy is adopted 60% of the time.
-
-- When the president is Republican and the 4 out of 5 average citizens favors 
+- When the president is Republican and 4 out of 5 average citizens favors 
 the proposed policy change, the policy is adopted 50% of the time.
 
 It appears that Republican presidents are more responsive to the average
