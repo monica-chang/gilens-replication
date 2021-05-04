@@ -700,7 +700,6 @@ clean_gilens_extension <- clean_gilens %>%
 model_7 <- lm(policy_change ~ pred50_norm + pred90_norm + 
                 intgrp_align_norm + party_pres, 
               data = clean_gilens_extension)
-summary(model_7)
 
 # I use invlogit() to convert to predicted probabilities for policy change to
 # be adopted. This makes the coefficient more interpretable.
@@ -762,7 +761,6 @@ potentially confounding factors.
 model_8 <- lm(policy_change ~ pred50_norm + pred90_norm + intgrp_align_norm +
               party_pres + party_pres:pred50_norm, 
               data = clean_gilens_extension)
-summary(model_8)
 
 # I use invlogit() to convert to predicted probabilities for policy change to
 # be adopted. This makes the coefficient more interpretable.

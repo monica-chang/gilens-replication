@@ -34,17 +34,29 @@ generate the report.
 ## Computational environment
 
 R version 4.0.2 (2020-06-22)
+
 Platform: x86_64-apple-darwin17.0 (64-bit)
+
 Running under: macOS Mojave 10.14.6
 
 R packages:
+
 tidyverse   1.3.1
+
 janitor     2.1.0
+
 rstanarm    2.21.1
+
 stargazer   5.2.2
+
 haven       2.4.1
+
 modEvA      2.0
+
 dplyr       1.0.5
+
 statxp      0.2
+
 gt          0.2.2
+
 cowplot     1.1.1
