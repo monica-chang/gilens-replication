@@ -434,23 +434,133 @@ stargazer(model_1, model_2, model_3, model_4,
           notes.append = FALSE)
 ```
 
-The magnitudes of the coefficients reported in table 3 are difficult to 
-interpret because of our transformations of the independent variables. A 
-helpful way to assess the relative influence of each set of actors is to 
-compare how the predicted probability of policy change alters when moving from 
-one point to another on their distributions of policy dispositions, while
-holding other actors’ preferences constant at their neutral points (50 percent 
-favorable for average citizens and for economic elites, and a net interest- 
-group alignment score of 0). These changing probabilities, based on the 
-coefficients in model 4 of table 3, are line- graphed in figure 1 along with 
-bar graphs of the underlying preference distributions.
 
 ```{r figure 1}
 
-figure_1 <- clean_gilens %>%
-  ggplot(aes(x = pred50_sw))
+clean_gilens %>%
+  
+  # I multiply pred50_sw to obtain a number that represents the percentage 
+  # of median voters in favor of a proposed policy change.
+  
+  mutate(pred50_sw_percent = 100*pred50_sw) %>%
+  ggplot(aes(pred50_sw_percent)) +
+  
+    # I use a histogram to display the underlying preference distribution.
+  
+    geom_histogram(aes(y = after_stat(count/sum(count))),
+                   alpha = 0.5, 
+                   bins = 10, 
+                   position = "identity") +
+  
+    # I use the coefficients from my Model 4 output and the neutral points of 
+    # the other two actors - 0.5 for economic elites and 0 for interest group
+    # alignment - to construct a line graph that shows how the predicted 
+    # probability of policy change alters when moving from one point to another 
+    # on the distribution of policy dispositions.
+  
+    geom_line(aes(y = -0.20999 + -0.86716*pred50_norm + 1.60551*0.5 + 0.48878*0)) +
+    xlim(0, 100) +
+    
+    # I customize the Y scales to have dual axes.
+  
+    scale_y_continuous(
+      
+      # I specify the name and limits of the lefthand axis.
+      
+      name = "Predicted probability of adoption",
+      limits = c(0, 0.7),
+      
+      # I specify the name and limits of the second axis by transforming
+      # the first axis.
+      
+      sec.axis = sec_axis(trans = ~.*0.5714, 
+                          name = "Percent of cases (grey columns)")
+    ) +
+    labs(title = "Average Citizens' Preferences",
+         x = "Percent favoring proposed policy change") +
+    theme_classic()
 
+clean_gilens %>%
+  
+  # I multiply pred90_sw to obtain a number that represents the percentage 
+  # of median voters in favor of a proposed policy change.
+  
+  mutate(pred90_sw_percent = 100*pred90_sw) %>%
+  ggplot(aes(pred90_sw_percent)) +
+  
+    # I use a histogram to display the underlying preference distribution.
+  
+    geom_histogram(aes(y = after_stat(count/sum(count))),
+                   alpha = 0.5, 
+                   bins = 10, 
+                   position = "identity") +
+  
+    # I use the coefficients from my Model 4 output and the neutral points of 
+    # the other two actors - 0.5 for average citizens and 0 for interest group
+    # alignment - to construct a line graph that shows how the predicted 
+    # probability of policy change alters when moving from one point to another 
+    # on the distribution of policy dispositions.
+  
+    geom_line(aes(y = -0.20999 + -0.86716*0.5 + 1.60551*pred90_norm + 0.48878*0)) +
+    xlim(0, 100) +
+    
+    # I customize the Y scales to have dual axes.
+  
+    scale_y_continuous(
+      
+      # I specify the name and limits of the lefthand axis.
+      
+      name = "Predicted probability of adoption",
+      limits = c(0, 0.7),
+      
+      # I specify the name and limits of the second axis by transforming
+      # the first axis.
+      
+      sec.axis = sec_axis(trans = ~.*0.5714, 
+                          name = "Percent of cases (grey columns)")
+    ) +
+    labs(title = "Economic Elites' Preferences",
+         x = "Percent favoring proposed policy change") +
+    theme_classic()
 
+clean_gilens %>%
+  
+  ggplot(aes(intgrp_align)) +
+  
+    # I use a histogram to display the underlying preference distribution.
+  
+    geom_histogram(aes(y = after_stat(count/sum(count))),
+                   alpha = 0.5, 
+                   bins = 12, 
+                   position = "identity") +
+  
+    # I use the coefficients from my Model 4 output and the neutral points of 
+    # the other two actors - 0.5 for average citizens and 0.5 got economic 
+    # elites - to construct a line graph that shows how the predicted 
+    # probability of policy change alters when moving from one point to another 
+    # on the distribution of policy dispositions.
+  
+    geom_smooth(aes(y = -0.20999 + -0.86716*0.5 + 1.60551*0.5 + 0.48878*intgrp_align_norm)) +
+    xlim(-24, 24) +
+    
+    # I customize the Y scales to have dual axes.
+  
+    scale_y_continuous(
+      
+      # I specify the name and limits of the lefthand axis.
+      
+      name = "Predicted probability of adoption",
+      limits = c(0, 0.7),
+      
+      # I specify the name and limits of the second axis by transforming
+      # the first axis.
+      
+      sec.axis = sec_axis(trans = ~.*0.5714, 
+                          name = "Percent of cases (grey columns)")
+    ) +
+    labs(title = "Interest Group Alignments",
+         x = "Net interest groups in support or opposition") +
+    theme_classic()
 ```
 
 ```{r generate table 4}
