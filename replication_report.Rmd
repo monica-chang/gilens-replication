@@ -2,7 +2,7 @@
 title: "Replication Report"
 author: "Monica Chang"
 date: "4/24/2021"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -118,7 +118,8 @@ come from a single data source (the same set of national opinion surveys), it
 is highly likely that the errors of these two measures are positively correlated 
 with each other. These correlated errors tend to produce upwardly biased
 statistical relationships between the two independent variables. This decision 
-is further explained in Appendix 2 of their paper.
+is further explained in Appendix 2 of their paper (see the documents folder
+of my Github repository to read this appendix in detail).
 
 ### What did they conclude?
 
@@ -146,19 +147,20 @@ change required a Constitutional amendment or Supreme Court ruling).
 After filtering the dataset to only include the 1,779 survey questions that
 met the criteria, I cleaned the dataset to prepare it for modeling:
 
-I turned the outcome variable into a dichotomous variable so that it was coded 1 
+First, I turned the outcome variable into a dichotomous variable so that it was coded 1 
 if the proposed policy change took place within four years of the survey date 
 and 0 if it did not.
 
-I calculated Net Interest Group Alignment scores for all interest groups,
-mass-based interest groups, and business-oriented interest groups for each
-survey question by using the formula described in the paper:
-
-$$ Net Interest-Group Alignment = ln(# Strongly Favor + [0.5 * # Somewhat Favor] + 1) - ln(# Strongly Oppose + [0.5 * # Somewhat Oppose] + 1). $$
 I took the logits of the imputed percent of respondents at the 
 50th and 90th income percentiles that favored the proposed policy change. 
 
-I standardized all predictors to be on a scale of 0 to 1. 
+Then, I calculated Net Interest Group Alignment scores for all interest groups,
+mass-based interest groups, and business-oriented interest groups for each
+survey question by using the formula described in the paper:
+
+Net Interest-Group Alignment = ln(# Strongly Favor + [0.5 * # Somewhat Favor] + 1) - ln(# Strongly Oppose + [0.5 * # Somewhat Oppose] + 1)} 
+
+Finally, I standardized all predictors to be on a scale of 0 to 1. 
 
 ### Table 1 Replication
 
@@ -392,10 +394,12 @@ clean_gilens_2 <- clean_gilens %>%
 
 model_5 <- lm(policy_change ~ z.pred50 + z.pred90 + z.intgrp, data = clean_gilens_2)
 
+```
+
+```{r, results = "asis"}
 # I use stargazer() to format a table with 3 regressions side-by-side.
 
 stargazer(model_1, model_2, model_3, model_4, 
-          type = "html", 
           title = "Table 3. Policy outcomes and the policy preferences of average citizens, economic elites, and interest groups",
           align = TRUE,
           dep.var.labels = c("Policy change"),
@@ -409,6 +413,7 @@ stargazer(model_1, model_2, model_3, model_4,
           notes.align = "l",
           notes.append = FALSE)
 ```
+
 ### Figure 1 Replication
 
 Because the magnitudes of the coefficients reported in Table 3 are hard to 
@@ -650,11 +655,12 @@ was much higher than the same coefficient in the original paper (0.78).
 # change.
 
 model_6 <- lm(policy_change ~ pred50_norm + pred90_norm + mass_intgrp_align_norm + bus_intgrp_align_norm, data = clean_gilens)
+```
 
+```{r, results = "asis"}
 # I use stargazer() to format a table of the regression output.
 
 stargazer(model_6,
-          type = "html", 
           title = "Table 4. The separate policy impact of business- oriented and mass-based interest groups",
           align = TRUE,
           dep.var.labels = c("Policy change"),
@@ -671,10 +677,11 @@ stargazer(model_6,
 
 ## Extension of the paper
 
-I extended the replication by adding in a variable to indicate whether the
-party of the President in the year of the survey question was a Democrat or a 
+The original paper does not consider the impact of party control on policy 
+outcomes. I extended the replication by adding in a variable to indicate whether
+theparty of the President in the year of the survey question was a Democrat or a 
 Republican. I was curious about whether Democratic or Republican control of 
-the presidency was more associated with policy change.
+the presidency was more associated with policy change. 
 
 ```{r extension part 1}
 
@@ -701,11 +708,12 @@ summary(model_7)
 c = coef(model_7)
 invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*0)
 invlogit(c[1] + c[2]*0.5 + c[3]*0.5 + c[4]*0 + c[5]*1)
+```
 
+```{r, results = "asis"}
 # I use stargazer() to format a table of the regression output.
 
 stargazer(model_7,
-          type = "html", 
           title = "Table 5. The impact of the party of the President on policy outcomes",
           align = TRUE,
           dep.var.labels = c("Policy change"),
@@ -719,21 +727,31 @@ stargazer(model_7,
           notes.align = "l",
           notes.append = FALSE)
 ```
+
 Based on the regression output, the other coefficients are fairly similar to 
 what they were in Table 3. To interpret the party_pres coefficient, we can 
 convert to predicted probabilities - similar to what we did for Figure 1.
 
 When one holds the preferences of average citizens, economic elites, and
 interest groups constant, the party of the President is associated with
-some predictive difference. When the president is Democratic, proposed policy
+little predictive difference. When the president is Democratic, proposed policy
 changes are adopted 53% of the time. When the president is Republican, proposed 
 policy changes are adopted 55% of the time. The difference seems relatively 
 small.
 
 I also extended the replication by adding in a statistical interaction between 
-party of the President and preferences of average citizens. I was curious about 
-whether there was any differential responsiveness by the different parties to 
-the average citizen.
+party of the President and preferences of average citizens. In Unequal Democracy,
+Larry Bartels finds a strong impact of partisan control on the minimum wage 
+(with the minimum wage keeping pace with inflation during Democratic 
+administrations but declining during Republican administrations). This would 
+seem to suggest that Democratic administrations are more responsive to the
+average citizen. I was curious about whether there was any differential 
+responsiveness by the different parties to the average citizen based on this 
+dataset.
+
+Of course, my analysis is fairly limited as I am not considering the party in
+control of Congress, whether government is unified, and a whole host of other
+potentially confounding factors.
 
 ```{r extension part 2}
 # I run a multivariate model where the preferences of the median voter, the 
@@ -755,11 +773,13 @@ invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*0 + d[6]*0)
 
 invlogit(d[1] + d[2]*0.2 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.2)
 invlogit(d[1] + d[2]*0.8 + d[3]*0.5 + d[4]*0 + d[5]*1 + d[6]*0.8)
+```
+
+```{r, results = "asis"}
 
 # I use stargazer() to format a table of the regression output.
 
 stargazer(model_8,
-          type = "html", 
           title = "Table 5. The impact of the party of the President on policy outcomes",
           align = TRUE,
           dep.var.labels = c("Policy change"),
@@ -775,19 +795,15 @@ stargazer(model_8,
           notes.append = FALSE)
 ```
 
-It appears that after adding this interaction, the coefficient for both 
-party_pres and the interaction coefficient are no longer statistically
-significant. #ASK: Why does statistical significance change?
+It appears that after adding this interaction, the coefficient for the 
+party_pres coefficient decreases significantly and is no longer statistically 
+significant (the standard error for the party_pres coefficient is larger in 
+magnitude than the coefficient itself). 
 
-The party_pres coefficient represents the influence of the party of the 
-President on policy outcomes when pred50_norm is equal to 0 - that is, when the 
-average citizen is completely opposed to a given policy. 
-
-The pred50_norm:party_pres coefficient represents the change in pred50_norm
-if the party of the President goes from Democrat to Republican.
-
-To more easily interpret these coefficients, we can convert to predicted 
-probabilities.
+However, the pred50_norm:party_pres coefficient is relatively statistically 
+significant. This coefficient represents the change in pred50_norm
+if the party of the President goes from Democrat to Republican. To more easily 
+interpret this coefficient, we can convert to predicted probabilities.
 
 When one holds the preferences of economic elites and interest groups constant, 
 the party of the President is associated with some differential responsiveness 
@@ -807,12 +823,58 @@ the proposed policy change, the policy is adopted 50% of the time.
 
 It appears that Republican presidents are more responsive to the average
 citizen. This is surprising - as I would have expected a Democratic president
-to be associated with more responsiveness to the average citizen.
+to be associated with more responsiveness to the average citizen. In general,
+Democratic administrations tend to align themselves with "the common man".
+
+The implications of this are striking and present a new puzzle. Why is 
+the Democratic Party, a party that frequently aligns itself with "the common 
+man" and pushes for policies that are supposedly beneficial for lower-income
+individuals, associated with *less* governmental responsiveness to the average
+citizen? Some additional research questions inspired by this puzzle:
+
+- In what policy domains were Republicans more responsive to the average citizen?
+- Is the Democratic Party out of touch with what the average citizen wants in 
+terms of social policies?
+- How different are preferences on redistributive policies between average 
+citizens and affluent voters? 
+- Does the average citizen prefer more downwardly redistributive policies?
+- How many of the policies on the national agenda are redistributive?
 
 ## Conclusion
 
-summarizing your work, important findings, limitations, etc.?
-– You may also want to discuss whether there are some future directions you want to explore in this part.
+In this replication, I re-create all of the tables and figures of the original 
+paper. The most important findings of the original paper were:
+
+- Economic elites and business-oriented interest groups have substantial 
+independent impacts on U.S. policy, while mass-based interest groups and 
+average citizens have little or no independent influence. 
+- Their results support theories of Economic-Elite Domination and Biased 
+Pluralism.
+
+I use OLS regression instead of SEM modeling (like Gilens and Page) because SEM 
+modeling is outside the scope of this class. This poses a limitation for how
+closely I am able to replicate their results. This difference in model choice 
+results in one major difference from their original paper - the influence of 
+the average citizen. In my analyses, the preferences of the average citizen had 
+a substantial, *negative*, and significant influence on the policy outcome.
+In other words, my replication indicates that a median voter's preference in 
+favor of a policy change is associated with a *negative* influence on the 
+proposed policy change getting adopted.
+
+For my extension, I looked into whether Democratic or Republican control of 
+the presidency was more associated with policy change. I found little influence.
+I also looked into whether there was any differential responsiveness to the 
+average citizen by the different parties. I surprisingly found that
+Republican presidents are more responsive to the average citizen.
+
+Future questions that could be investigated with this dataset:
+
+- What is the impact of unified government on governmental responsiveness?
+Are periods of unified government associated with greater likelihood that
+proposed policy changes will get adopted?
+- What would these results look like if this dataset was extended into the
+present day? Given the impact of the filibuster, has governmental responsiveness
+worsened?
 
 ## Data Source
 
