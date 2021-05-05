@@ -2,7 +2,9 @@
 title: "Replication Report"
 author: "Monica Chang"
 date: "4/24/2021"
-output: pdf_document
+output: 
+  pdf_document:
+    extra_dependencies: ["dcolumn"]
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +19,7 @@ library(dplyr)
 library(statxp)
 library(gt)
 library(cowplot)
+library(kableExtra)
 ```
 
 ## Overview of the original paper
@@ -147,36 +150,25 @@ change required a Constitutional amendment or Supreme Court ruling).
 After filtering the dataset to only include the 1,779 survey questions that
 met the criteria, I cleaned the dataset to prepare it for modeling:
 
-First, I turned the outcome variable into a dichotomous variable so that it was coded 1 
+- First, I turned the outcome variable into a dichotomous variable so that it was coded 1 
 if the proposed policy change took place within four years of the survey date 
 and 0 if it did not.
 
-I took the logits of the imputed percent of respondents at the 
+- I took the logits of the imputed percent of respondents at the 
 50th and 90th income percentiles that favored the proposed policy change. 
 
-Then, I calculated Net Interest Group Alignment scores for all interest groups,
+- Then, I calculated Net Interest Group Alignment scores for all interest groups,
 mass-based interest groups, and business-oriented interest groups for each
 survey question by using the formula described in the paper:
 
-Net Interest-Group Alignment = ln(# Strongly Favor + [0.5 * # Somewhat Favor] + 1) - ln(# Strongly Oppose + [0.5 * # Somewhat Oppose] + 1)} 
+Net Interest-Group Alignment = ln(# Strongly Favor + [0.5 * # Somewhat Favor] + 1) - ln(# Strongly Oppose + [0.5 * # Somewhat Oppose] + 1)
 
-Finally, I standardized all predictors to be on a scale of 0 to 1. 
+- Finally, I standardized all predictors to be on a scale of 0 to 1. 
 
 ### Table 1 Replication
 
 This table summarizes the main hypotheses of interest based on the four ideal 
 types of theory. 
-
-For example, for the theory of Majoritarian Electoral Democracy to be supported,
-we would expect to see only the average citizen have substantial independent 
-influence on the policy outcome.
-
-For the theory of Dominance by Economic Elites to be supported, we would expect 
-to see economic elites have the most substantial independent influence on the
-policy outcome. We would also expect some independent influence by average 
-citizens and interest groups - especially business-oriented interest groups.
-
-The rest of the rows can be interpreted in a similar manner.
 
 ```{r generate table 1}
 # I initialize the appropriate values for sets of actors that would 
@@ -192,43 +184,79 @@ table_1 <- tibble(theories = c("Majoritarian Electoral Democracy",
                   mass_intgrp_align_norm = c("n", "n", "Y", "y"),
                   bus_intgrp_align_norm = c("n", "y", "Y", "Y"))
 
-# I format the table using gt() functions.
+# I format the table using functions from the kableExtra package.
 
-table_1 %>%
-  gt(rowname_col = "theories") %>%
-  tab_header(
-    title = "Table 1",
-    subtitle = glue::glue("Theoretical predictions concerning the independent influence of sets of actors upon policy outcomes")
-  ) %>%
-  tab_spanner(
-    label = "Sets of Actors",
-    columns = c("pred50_norm", "pred90_norm", "intgrp_align_norm", "mass_intgrp_align_norm", "bus_intgrp_align_norm")
-  ) %>%
-  cols_label(pred50_norm = "Average Citizens",
-             pred90_norm = "Economic Elites",
-             intgrp_align_norm = "All Interest Groups",
-             mass_intgrp_align_norm = "Mass Interest Groups",
-             bus_intgrp_align_norm = "Business Interest Groups") %>%
-  tab_source_note(
-    source_note = "n = little or no independent influence"
-  ) %>%
-  tab_stubhead(label = "Theory (ideal type)") %>%
-  tab_source_note(
-    source_note = "y = some independent influence"
-  ) %>%
-  tab_source_note(
-    source_note = "Y = substantial independent influence"
-  )
+kbl(table_1, 
+    caption = "Theoretical predictions concerning the independent influence of sets of actors upon policy outcomes", 
+    col.names = c("Theory (ideal type)",
+                  "Average Citizens",
+                  "Economic Elites",
+                  "All Interest Groups",
+                  "Mass Interest Groups",
+                  "Business Interest Groups"),
+    booktabs = T) %>%
+  kable_styling(latex_options = c("scale_down")) %>%
+  add_header_above(c(" " = 1, "Sets of Actors" = 5)) %>%
+  footnote(general = "n = little or no independent influence \n y = some independent influence \n Y = substantial independent influence",
+           footnote_as_chunk = T)
+
 ```
+
+For example, for the theory of Majoritarian Electoral Democracy to be supported,
+we would expect to see only the average citizen have substantial independent 
+influence on the policy outcome.
+
+For the theory of Dominance by Economic Elites to be supported, we would expect 
+to see economic elites have the most substantial independent influence on the
+policy outcome. We would also expect some independent influence by average 
+citizens and interest groups - especially business-oriented interest groups.
+
+The rest of the rows can be interpreted in a similar manner.
 
 ### Table 2 Replication
 
 This table shows the correlations between independent variables. 
 
-The authors get the following findings from this table:
+```{r generate table 2}
+clean_gilens <- read_csv(file = "clean_data/clean_gilens.csv")
 
-- The preferences of average citizens are positively and fairly highly 
-correlated, across issues, with the preferences of economic elites. This means
+# I select the five predictors relevant for Table 2.
+
+table_2 <- clean_gilens %>%
+  dplyr::select(pred50_norm, pred90_norm, intgrp_align_norm, 
+                mass_intgrp_align_norm, bus_intgrp_align_norm)
+
+# I use the corstars() function to compute a correlation matrix with stars to
+# indicate significant correlations.
+
+table_2_correlation <- corstars(table_2) %>%
+  mutate(predictors = c("Average citizens’ preferences", "Economic elites’ preferences", 
+                        "All interest groups", "Mass public interest groups", 
+                        "Business interest groups")) %>%
+  mutate(bus_intgrp_align_norm = "") %>%
+  select(predictors, pred50_norm:mass_intgrp_align_norm, bus_intgrp_align_norm)
+
+rownames(table_2_correlation) <- NULL
+
+# I format the table using functions from the kableExtra package.
+
+kbl(table_2_correlation, 
+    caption = "Correlations among independent variables", 
+    col.names = c(" ",
+                  "Average citizens’ preferences",
+                  "Economic elites’ preferences",
+                  "All interest groups",
+                  "Mass public interest groups",
+                  "Business interest groups"),
+    booktabs = T) %>%
+    kable_styling(latex_options = c("scale_down")) %>%
+    footnote(general = "***p<.001; n = 1779.")
+```
+
+The authors get the following findings from Table 2 in the original paper:
+
+- The preferences of average citizens are positively and highly 
+correlated with the preferences of economic elites. This means
 average citizens might often be observed to get their preferred policy outcomes
 even if they had no independent effect on policy making. 
 
@@ -272,42 +300,6 @@ groups and the preferences of business-oriented interest groups is -0.21 and
 statistically significant, whereas Gilens and Page get a coefficient of -0.05 
 that is not statistically significant.
 
-```{r generate table 2}
-clean_gilens <- read_csv(file = "clean_data/clean_gilens.csv")
-
-# I select the five predictors relevant for Table 2.
-
-table_2 <- clean_gilens %>%
-  dplyr::select(pred50_norm, pred90_norm, intgrp_align_norm, 
-                mass_intgrp_align_norm, bus_intgrp_align_norm)
-
-# I use the corstars() function to compute a correlation matrix with stars to
-# indicate significant correlations.
-
-table_2_correlation <- corstars(table_2) %>%
-  mutate(predictors = c("Average citizens’ preferences", "Economic elites’ preferences", 
-                        "All interest groups", "Mass public interest groups", 
-                        "Business interest groups"))
-
-# I format the table using gt() functions.
-
-table_2_correlation %>%
-  gt(rowname_col = "predictors") %>%
-  tab_header(
-    title = "Table 2",
-    subtitle = glue::glue("Correlations among independent variables")
-  ) %>%
-  cols_label(pred50_norm = "Average citizens’ preferences",
-             pred90_norm = "Economic elites’ preferences",
-             intgrp_align_norm = "All interest groups",
-             mass_intgrp_align_norm = "Mass public interest groups") %>%
-  tab_source_note(
-    source_note = "***p<.001; n = 1779."
-  ) %>%
-  tab_source_note(
-    source_note = "Note: Entries are correlation coefficients based on OLS regression coefficients - not SEM modeling."
-  )
-```
 
 ### Table 3 Replication
 
@@ -323,42 +315,6 @@ I use ordinary least squares regression instead. I am able to check whether my
 results are correct based on Table A1 in Appendix 2 - an OLS analysis provided 
 by Gilens that is parallel to the structural equation model presented in 
 Table 3. 
-
-The authors get four main findings:
-
-- When taken separately, each independent variable is strongly, positively, and 
-significantly related to policy change.
-
-- In the multivariate model, the independent influence of the median voter's 
-preferences is not significant and near-zero. This rejects the theory of 
-Majoritarian Electoral Democracy.
-
-- Economic elites have a substantial, highly significant, independent influence
-on policy outcomes.
-
-- Organized interest groups are found to have substantial independent influence 
-on policy outcomes.
-
-Based on my replicated Table 3, my coefficient values for the bivariate 
-regression models (Models 1-3) are quite similar to those in the paper. However,
-my results are significantly different when it comes to the multivariate model
-(Model 4):
-
-- Whereas the regression coefficient representing the median voter's influence 
-in the original paper is statistically and substantively insignificant (0.03), 
-the coefficient representing the median voter's influence is negative, 
-substantial, and statistically significant in my replication (-0.87). In other 
-words, my replication indicates that a median voter's preference in 
-favor of a policy change is associated with a *negative* influence on the policy
-outcome. It would seem that Gilens and Page's correction for correlated 
-measurement error is crucial to get to their key finding - the fact the median 
-voter has no significant independent influence.
-
-- The regression coefficient representing the economic elite's influence is much
-higher in my replication (1.61) than in the original paper (0.76).
-
-- The regression coefficient representing interest group influence is slightly 
-lower in my replication (0.49) than in the original paper (0.56).
 
 ```{r generate table 3}
 # I run a model where the preferences of the median voter is the sole predictor 
@@ -400,7 +356,7 @@ model_5 <- lm(policy_change ~ z.pred50 + z.pred90 + z.intgrp, data = clean_gilen
 # I use stargazer() to format a table with 3 regressions side-by-side.
 
 stargazer(model_1, model_2, model_3, model_4, 
-          title = "Table 3. Policy outcomes and the policy preferences of average citizens, economic elites, and interest groups",
+          title = "Policy outcomes and the policy preferences of average citizens, economic elites, and interest groups",
           align = TRUE,
           dep.var.labels = c("Policy change"),
           column.labels = c("Model 1", "Model 2", "Model 3", "Model 4"),
@@ -409,10 +365,59 @@ stargazer(model_1, model_2, model_3, model_4,
                                "Alignment of interest groups"),
           omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
           no.space=TRUE,
-          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest- Group Alignment Index described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. The standardized coefficients for model 4 in this table are -0.22, .41, and .15 for average citizens, economic elites, and interest groups, respectively. N = 1,779."),
+          notes = c("*p<0.1; **p<0.05; ***p<0.01", 
+                    "All predictors are scaled to range from 0 to 1. The",
+                    "dependent variable is the policy outcome, coded 1 if the", 
+                    "proposed policy change took place within four years of the",
+                    "survey date and 0 if it did not. Predictors are the logits",
+                    "of the imputed percent of respondents at the fiftieth",
+                    "(“average citizens”) or ninetieth (“economic elites”)",
+                    "income percentile that favor the proposed policy change", 
+                    "and the Net Interest-Group Alignment Index described in",
+                    "the text. The standardized coefficients for model 4 in",
+                    "this table are -0.22, .41, and .15 for average citizens",
+                    "economic elites, and interest groups, respectively.",
+                    "N = 1,779."),
           notes.align = "l",
           notes.append = FALSE)
 ```
+
+The authors get four main findings:
+
+- When taken separately, each independent variable is strongly, positively, and 
+significantly related to policy change.
+
+- In the multivariate model, the independent influence of the median voter's 
+preferences is not significant and near-zero. This rejects the theory of 
+Majoritarian Electoral Democracy.
+
+- Economic elites have a substantial, highly significant, independent influence
+on policy outcomes.
+
+- Organized interest groups are found to have substantial independent influence 
+on policy outcomes.
+
+Based on my replicated Table 3, my coefficient values for the bivariate 
+regression models (Models 1-3) are quite similar to those in the paper. However,
+my results are significantly different when it comes to the multivariate model
+(Model 4):
+
+- Whereas the regression coefficient representing the median voter's influence 
+in the original paper is statistically and substantively insignificant (0.03), 
+the coefficient representing the median voter's influence is negative, 
+substantial, and statistically significant in my replication (-0.87). In other 
+words, my replication indicates that a median voter's preference in 
+favor of a policy change is associated with a *negative* influence on the policy
+outcome. It would seem that Gilens and Page's correction for correlated 
+measurement error is crucial to get to their key finding - the fact the median 
+voter has no significant independent influence.
+
+- The regression coefficient representing the economic elite's influence is much
+higher in my replication (1.61) than in the original paper (0.76).
+
+- The regression coefficient representing interest group influence is slightly 
+lower in my replication (0.49) than in the original paper (0.56).
+
 
 ### Figure 1 Replication
 
@@ -425,43 +430,6 @@ favorable for average citizens and for economic elites, and a net interest-group
 alignment score of 0). These changing probabilities, based on the coefficients 
 in Model 4 of Table 3, are line-graphed in Figure 1 along with bar graphs of 
 the underlying preference distributions.
-
-The authors get three main findings:
-
-- When one holds the preferences of interest groups and economic elites constant, 
-it makes very little difference what the average citizen prefers. The 
-probability of policy change is around the same (around 0.3) whether a tiny
-minority or a large majority of average citizens favor a proposed policy change.
-
-- When one holds the preferences of interest groups and average citizens constant, 
-it makes a large difference what economic elites prefer. When 1 out of 5 
-economic elites favor a policy, it is adopted 18% of the time. When 4 out of 5
-economic elites favor a policy, it is adopted 45% of the time.
-
-- When one holds the preferences of average citizens and economic elites constant, 
-it makes a large difference what interest groups prefer. When the Net Interest
-Group Alignment score is -2, it is adopted 21% of the time. When the Net Interest
-Group Alignment score is +2, it is adopted 39% of the time.
-
-Based on my replicated Figure 1, I get slightly different results. This makes
-sense considering the fact that my coefficients for Model 4 of Table 3 
-are significantly different from the original paper. I find that:
-
-- When one holds the preferences of interest groups and economic elites constant, 
-it makes a large difference what the average citizen prefers. When 20% of 
-average citizens favor a proposed policy change, it is adopted 60% of the time.
-When 80% of average citizens favor a proposed policy change, it is adopted 47% 
-of the time.
-
-- When one holds the preferences of interest groups and average citizens constant, 
-it makes a large difference what economic elites prefer. When 1 out of 5 
-economic elites favor a policy, it is adopted 42% of the time. When 4 out of 5
-economic elites favor a policy, it is adopted 65% of the time.
-
-- When one holds the preferences of average citizens and economic elites constant, 
-it makes a large difference what interest groups prefer. When the Net Interest
-Group Alignment score is -2, it is adopted 31% of the time. When the Net Interest
-Group Alignment score is +2, it is adopted 76% of the time.
 
 ```{r figure 1}
 # I pull out the coefficients from Model 4 to use in the plots.
@@ -604,14 +572,52 @@ plot_3 <- clean_gilens %>%
 
 # I stack all 3 plots on top of each other to form Figure 1.
 
-title <- ggdraw() + draw_label("Figure 1. Predicted probability of policy adoption (dark lines, left axes) \n by policy disposition; the distribution of preferences (gray columns, right axes)", fontface='bold')
+title <- ggdraw() + draw_label("Figure 1. Predicted probability of policy adoption (dark lines, left axes) \n by policy disposition; the distribution of preferences (gray columns, right axes)", fontface='bold', size = 12)
 
 plot_grid(
   title, plot_1, plot_2, plot_3,
   ncol = 1,
-  rel_heights=c(0.4, 1, 1, 1)
+  nrow = 4,
+  rel_heights = c(0.4, 1, 1, 1)
 )
 ```
+
+The authors get three main findings:
+
+- When one holds the preferences of interest groups and economic elites constant, 
+it makes very little difference what the average citizen prefers. The 
+probability of policy change is around the same (around 0.3) whether a tiny
+minority or a large majority of average citizens favor a proposed policy change.
+
+- When one holds the preferences of interest groups and average citizens constant, 
+it makes a large difference what economic elites prefer. When 1 out of 5 
+economic elites favor a policy, it is adopted 18% of the time. When 4 out of 5
+economic elites favor a policy, it is adopted 45% of the time.
+
+- When one holds the preferences of average citizens and economic elites constant, 
+it makes a large difference what interest groups prefer. When the Net Interest
+Group Alignment score is -2, it is adopted 21% of the time. When the Net Interest
+Group Alignment score is +2, it is adopted 39% of the time.
+
+Based on my replicated Figure 1, I get slightly different results. This makes
+sense considering the fact that my coefficients for Model 4 of Table 3 
+are significantly different from the original paper. I find that:
+
+- When one holds the preferences of interest groups and economic elites constant, 
+it makes a large difference what the average citizen prefers. When 20% of 
+average citizens favor a proposed policy change, it is adopted 60% of the time.
+When 80% of average citizens favor a proposed policy change, it is adopted 47% 
+of the time.
+
+- When one holds the preferences of interest groups and average citizens constant, 
+it makes a large difference what economic elites prefer. When 1 out of 5 
+economic elites favor a policy, it is adopted 42% of the time. When 4 out of 5
+economic elites favor a policy, it is adopted 65% of the time.
+
+- When one holds the preferences of average citizens and economic elites constant, 
+it makes a large difference what interest groups prefer. When the Net Interest
+Group Alignment score is -2, it is adopted 31% of the time. When the Net Interest
+Group Alignment score is +2, it is adopted 76% of the time.
 
 ### Table 4 Replication
 
@@ -619,6 +625,43 @@ This table reports results for a multivariate analysis regressing the policy
 outcome on the preferences of average citizens, the preferences of economic 
 elites, the preferenes of mass-based interest groups, and the preferences of
 business-oriented interest groups. 
+
+```{r generate table 4}
+# I run a multivariate model where the preferences of the median voter, the 
+# preferences of the 90th percentile voter, and the interest group alignment
+# cores of mass-based and business interest groups are predictors of policy 
+# change.
+
+model_6 <- lm(policy_change ~ pred50_norm + pred90_norm + mass_intgrp_align_norm + bus_intgrp_align_norm, data = clean_gilens)
+```
+
+```{r, results = "asis"}
+# I use stargazer() to format a table of the regression output.
+
+stargazer(model_6,
+          title = "The separate policy impact of business- oriented and mass-based interest groups",
+          align = TRUE,
+          dep.var.labels = c("Policy change"),
+          covariate.labels = c("Average citizens’ preferences", 
+                               "Economic elites’ preferences", 
+                               "Mass-based interest groups",
+                               "Business interest groups"),
+          omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
+          no.space=TRUE,
+          notes = c("*p<0.1; **p<0.05; ***p<0.01", 
+                    "All predictors are scaled to range from 0 to 1. The",
+                    "dependent variable is the policy outcome, coded 1 if the", 
+                    "proposed policy change took place within four years of the",
+                    "survey date and 0 if it did not. Predictors are the logits",
+                    "of the imputed percent of respondents at the fiftieth",
+                    "(“average citizens”) or ninetieth (“economic elites”)",
+                    "income percentile that favor the proposed policy change", 
+                    "and the Net Interest-Group Alignment Index described in",
+                    "the text.",
+                    "N = 1,779."),
+          notes.align = "l",
+          notes.append = FALSE)
+```
 
 The authors get four main findings:
 
@@ -639,7 +682,7 @@ My coefficients for both mass-based and business-oriented interest groups are
 fairly similar to the original paper. However, because I use OLS regression 
 instead of SEM modeling, I get slightly different results for the other
 two coefficients. My results here are consistent with my observations
-for my replication. Table 3.
+for my replication's Table 3.
 
 - My coefficient representing the influence of average citizens was substantial,
 negative, and significant (-0.895) whereas the same coefficient in the original
@@ -648,38 +691,12 @@ paper was positive, near-zero, and not significant (0.05).
 - My coefficient representing the influence of economic elites was (1.662) 
 was much higher than the same coefficient in the original paper (0.78). 
 
-```{r generate table 4}
-# I run a multivariate model where the preferences of the median voter, the 
-# preferences of the 90th percentile voter, and the interest group alignment
-# cores of mass-based and business interest groups are predictors of policy 
-# change.
-
-model_6 <- lm(policy_change ~ pred50_norm + pred90_norm + mass_intgrp_align_norm + bus_intgrp_align_norm, data = clean_gilens)
-```
-
-```{r, results = "asis"}
-# I use stargazer() to format a table of the regression output.
-
-stargazer(model_6,
-          title = "Table 4. The separate policy impact of business- oriented and mass-based interest groups",
-          align = TRUE,
-          dep.var.labels = c("Policy change"),
-          covariate.labels = c("Average citizens’ preferences", 
-                               "Economic elites’ preferences", 
-                               "Mass-based interest groups",
-                               "Business interest groups"),
-          omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
-          no.space=TRUE,
-          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest- Group Alignment Indices described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. N = 1,779."),
-          notes.align = "l",
-          notes.append = FALSE)
-```
 
 ## Extension of the paper
 
 The original paper does not consider the impact of party control on policy 
 outcomes. I extended the replication by adding in a variable to indicate whether
-theparty of the President in the year of the survey question was a Democrat or a 
+the party of the President in the year of the survey question was a Democrat or a 
 Republican. I was curious about whether Democratic or Republican control of 
 the presidency was more associated with policy change. 
 
@@ -713,7 +730,7 @@ c = coef(model_7)
 # I use stargazer() to format a table of the regression output.
 
 stargazer(model_7,
-          title = "Table 5. The impact of the party of the President on policy outcomes",
+          title = "The impact of the party of the President on policy outcomes",
           align = TRUE,
           dep.var.labels = c("Policy change"),
           covariate.labels = c("Average citizens’ preferences", 
@@ -722,7 +739,17 @@ stargazer(model_7,
                                "Republican president"),
           omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
           no.space=TRUE,
-          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest- Group Alignment Indices described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. N = 1,779."),
+          notes = c("*p<0.1; **p<0.05; ***p<0.01", 
+                    "All predictors are scaled to range from 0 to 1. The",
+                    "dependent variable is the policy outcome, coded 1 if the", 
+                    "proposed policy change took place within four years of the",
+                    "survey date and 0 if it did not. Predictors are the logits",
+                    "of the imputed percent of respondents at the fiftieth",
+                    "(“average citizens”) or ninetieth (“economic elites”)",
+                    "income percentile that favor the proposed policy change", 
+                    "and the Net Interest-Group Alignment Index described in",
+                    "the text.",
+                    "N = 1,779."),
           notes.align = "l",
           notes.append = FALSE)
 ```
@@ -731,7 +758,7 @@ Based on the regression output, the other coefficients are fairly similar to
 what they were in Table 3. To interpret the party_pres coefficient, we can 
 convert to predicted probabilities - similar to what we did for Figure 1.
 
-When one holds the preferences of average citizens, economic elites, and
+When one holds the preferences of the median voter, economic elites, and
 interest groups constant, the party of the President is associated with
 little predictive difference. When the president is Democratic, proposed policy
 changes are adopted 53% of the time. When the president is Republican, proposed 
@@ -739,13 +766,13 @@ policy changes are adopted 55% of the time. The difference seems relatively
 small.
 
 I also extended the replication by adding in a statistical interaction between 
-party of the President and preferences of average citizens. In Unequal Democracy,
-Larry Bartels finds a strong impact of partisan control on the minimum wage 
-(with the minimum wage keeping pace with inflation during Democratic 
-administrations but declining during Republican administrations). This would 
-seem to suggest that Democratic administrations are more responsive to the
-average citizen. I was curious about whether there was any differential 
-responsiveness by the different parties to the average citizen based on this 
+party of the President and preferences of the median voter. In *Unequal 
+Democracy*, Larry Bartels finds that partisan control has a strong impact on 
+the minimum wage (with the minimum wage keeping pace with inflation during 
+Democratic administrations but declining during Republican administrations). 
+This suggests that Democratic administrations are more responsive to the
+median voter. I was curious about whether there was any differential 
+responsiveness by the different parties to the median voter based on this 
 dataset.
 
 Of course, my analysis is fairly limited as I am not considering the party in
@@ -778,7 +805,7 @@ d = coef(model_8)
 # I use stargazer() to format a table of the regression output.
 
 stargazer(model_8,
-          title = "Table 5. The impact of the party of the President on policy outcomes",
+          title = "The impact of the party of the President on policy outcomes",
           align = TRUE,
           dep.var.labels = c("Policy change"),
           covariate.labels = c("Average citizens’ preferences", 
@@ -788,7 +815,17 @@ stargazer(model_8,
                                "Average citizens' preferences*Republican president"),
           omit.stat=c("LL","ser","f", "adj.rsq", "n"), 
           no.space=TRUE,
-          notes = c("*p<0.1; **p<0.05; ***p<0.01", "All predictors are scaled to range from 0 to 1. The dependent variable is the policy outcome, coded 1 if the proposed policy change took place within four years of the survey date and 0 if it did not. Predictors are the logits of the imputed percent of respondents at the fiftieth (“average citizens”) or ninetieth (“economic elites”) income percentile that favor the proposed policy change, and the Net Interest-Group Alignment Indices described in the text. Standard errors are asymptotically distribution-free, and all analyses reflect estimated measurement error in the predictors, as described in Appendix 2. N = 1,779."),
+          notes =c("*p<0.1; **p<0.05; ***p<0.01", 
+                    "All predictors are scaled to range from 0 to 1. The",
+                    "dependent variable is the policy outcome, coded 1 if the", 
+                    "proposed policy change took place within four years of the",
+                    "survey date and 0 if it did not. Predictors are the logits",
+                    "of the imputed percent of respondents at the fiftieth",
+                    "(“average citizens”) or ninetieth (“economic elites”)",
+                    "income percentile that favor the proposed policy change", 
+                    "and the Net Interest- Group Alignment Index described in",
+                    "the text.",
+                    "N = 1,779."),
           notes.align = "l",
           notes.append = FALSE)
 ```
@@ -805,33 +842,34 @@ interpret this coefficient, we can convert to predicted probabilities.
 
 When one holds the preferences of economic elites and interest groups constant, 
 the party of the President is associated with some differential responsiveness 
-to the average citizen. 
+to the median voter:
 
-- When the president is Democratic and 1 out of 5 average citizens favors 
+- When the president is Democratic and 1 out of 5 median voters favors 
 the proposed policy change, the policy is adopted 60% of the time.
-- When the president is Democratic and 4 out of 5 average citizens favors 
+- When the president is Democratic and 4 out of 5 median voter favors 
 the proposed policy change, the policy is adopted 45% of the time.
-- When the president is Republican and 1 out of 5 average citizens favors 
+- When the president is Republican and 1 out of 5 median voters favors 
 the proposed policy change, the policy is adopted 60% of the time.
-- When the president is Republican and 4 out of 5 average citizens favors 
+- When the president is Republican and 4 out of 5 median voters favors 
 the proposed policy change, the policy is adopted 50% of the time.
 
-It appears that Republican presidents are more responsive to the average
-citizen. This is surprising - as I would have expected a Democratic president
-to be associated with more responsiveness to the average citizen. In general,
+It appears that Republican presidents are more responsive to the median voter. 
+This is surprising - as I would have expected a Democratic president
+to be associated with more responsiveness to the median voter. In general,
 Democratic administrations tend to align themselves with "the common man".
 
 The implications of this are striking and present a new puzzle. Why is 
 the Democratic Party, a party that frequently aligns itself with "the common 
 man" and pushes for policies that are supposedly beneficial for lower-income
-individuals, associated with *less* governmental responsiveness to the average
-citizen? Some additional research questions inspired by this puzzle:
+individuals, associated with *less* governmental responsiveness to the median 
+voter? Some additional research questions inspired by this puzzle:
 
-- In what policy domains were Republicans more responsive to the average citizen?
-- Is the Democratic Party out of touch with what the average citizen wants in 
+- In what policy domains were Republicans more responsive to the median voter?
+- Is the Democratic Party out of touch with what the median voter wants in 
 terms of social policies?
-- How different are preferences on redistributive policies between average 
-citizens and affluent voters? 
+- Does the Democratic Party pass more downwardly redistributive policies?
+- How different are preferences on redistributive policies between the median 
+voter and affluent voters? 
 - Does the average citizen prefer more downwardly redistributive policies?
 - How many of the policies on the national agenda are redistributive?
 
@@ -842,7 +880,7 @@ paper. The most important findings of the original paper were:
 
 - Economic elites and business-oriented interest groups have substantial 
 independent impacts on U.S. policy, while mass-based interest groups and 
-average citizens have little or no independent influence. 
+the median voter have little or no independent influence. 
 - Their results support theories of Economic-Elite Domination and Biased 
 Pluralism.
 
@@ -850,7 +888,7 @@ I use OLS regression instead of SEM modeling (like Gilens and Page) because SEM
 modeling is outside the scope of this class. This poses a limitation for how
 closely I am able to replicate their results. This difference in model choice 
 results in one major difference from their original paper - the influence of 
-the average citizen. In my analyses, the preferences of the average citizen had 
+the amedian voter. In my analyses, the preferences of the median voter had 
 a substantial, *negative*, and significant influence on the policy outcome.
 In other words, my replication indicates that a median voter's preference in 
 favor of a policy change is associated with a *negative* influence on the 
@@ -859,8 +897,8 @@ proposed policy change getting adopted.
 For my extension, I looked into whether Democratic or Republican control of 
 the presidency was more associated with policy change. I found little influence.
 I also looked into whether there was any differential responsiveness to the 
-average citizen by the different parties. I surprisingly found that
-Republican presidents are more responsive to the average citizen.
+median voter by the different parties. I surprisingly found that
+Republican presidents are more responsive to the median voter.
 
 Future questions that could be investigated with this dataset:
 
@@ -877,7 +915,7 @@ The data for this paper can be found here: https://www.russellsage.org/datasets/
 
 ## Bibliography
 
-Bartels, Larry M. Unequal Democracy: The Political Economy of the New Gilded Age. NEW YORK; PRINCETON; OXFORD: Princeton University Press, 2008. Accessed May 4, 2021. http://www.jstor.org/stable/j.ctt7t9ks.
+Bartels, Larry M. Unequal Democracy: The Political Economy of the New Gilded Age. New York; Princeton; Oxford: Princeton University Press, 2008. Accessed May 4, 2021. http://www.jstor.org/stable/j.ctt7t9ks.
 
 Gilens, M., & Page, B. (2014). Testing Theories of American Politics: Elites, Interest Groups, and Average Citizens. Perspectives on Politics, 12(3), 564-581. doi:10.1017/S1537592714001595
 
