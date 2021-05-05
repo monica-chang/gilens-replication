@@ -920,9 +920,10 @@ proposed policy changes will get adopted?
 present day? Given the impact of the filibuster, has governmental responsiveness
 worsened?
 
-## Data Source
+## Data Source & Code Repository
 
 The data for this paper can be found here: https://www.russellsage.org/datasets/economic-inequality-and-political-representation. 
+All the code used to generate this report can be found here: https://github.com/monica-chang/gilens-replication.
 
 ## Bibliography
 
