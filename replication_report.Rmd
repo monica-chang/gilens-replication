@@ -704,9 +704,20 @@ was much higher than the same coefficient in the original paper (0.78).
 ## Extension of the paper
 
 The original paper does not consider the impact of party control on policy 
-outcomes. I extended the replication by adding in a variable to indicate whether
-the party of the President in the year of the survey question was a Democrat or a 
-Republican. I was curious about whether Democratic or Republican control of 
+outcomes. Intuitively, it would make sense for party control to have some 
+influence over governmental responsiveness to voters of different income
+percentiles. In general, the Democratic Party is associated with policies that
+are more beneficial for low-income individuals and the Republican Party is
+associated with policies that are more beneficial for high-income individuals
+and corporations. 
+
+This is an example of omitted variable bias. When a statistical model leaves
+out one or more relevant variables, the model may attribute the effect of the 
+missing variables to those that were included.
+
+I extended the replication by adding in a variable to indicate whether
+the party of the President in the year of the survey question was a Democrat or 
+a Republican. I was curious about whether Democratic or Republican control of 
 the presidency was more associated with policy change. 
 
 ```{r extension part 1}
